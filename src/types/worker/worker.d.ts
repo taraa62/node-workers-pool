@@ -1,4 +1,9 @@
-import {TAny, TAnyObject} from '../global';
+import {TAny} from '../global';
+import {EWorkerMessageType, EWorkerMode} from "../../worker/worker/worker-types";
+import {WorkerDedicate} from "../../worker/worker/worker-dedicate";
+import {MessagePort} from "worker_threads";
+import {IncomingHttpHeaders} from "http";
+import {IResult, Result} from "../../utils/IResult";
 
 export interface IWorkersService {
     addPool(options: IPoolOptions): void;
@@ -6,32 +11,47 @@ export interface IWorkersService {
     addTask(namePool: string, data: TAny): void;
 }
 
-export enum EModeThread {
-    SINGLE = 0,
-    MULTI = 1
-}
-
 export interface IPoolOptions {
-    mode: EModeThread;
     name: string;
     pathJsFile: string;
-    workerOption: IWorkerOption;
-    initData: TAnyObject;
-    minWorkers: number;
-    maxWorkers: number;
-    timeRunTask: number;
+    mode: EWorkerMode;
+    initData?: TAny;
+    minPoolWorkers?: number;
+    maxPoolWorkers?: number;
+    timeRunTask?: number;
+    isUpWorker?: (opt: IPoolOptions, controller: IWorkerPoolController) => boolean;
+    maxTaskToUpNewWorker?: number;
+    callWorkerExit?: (key: string, error?: Error) => void;
 }
 
-export interface IWorkerOption {
-    isMessageChannel: boolean;
-}
 
 export interface IWorkerPoolController {
 
-    newTask(data: TAny): string;
+    newTask<T>(data: TAny): Promise<Result<T>>;
 
-    workerEndRun(key: string): void;
+    getAvailableWorkers(): WorkerDedicate[];
 
-    workerDead(key: string, er: number | string | Error): void;
+    workerExit(key: string, code: number, er?: Error): void;
 
+}
+
+export interface IWorkerData {
+    data?: TAny;
+}
+
+export type TMessageWorkerBaseReq = {
+    command: string
+}
+export type TMessageWorkerBaseResp = {
+    error?: Error | Result | string
+    respHeaders?: IncomingHttpHeaders;
+
+}
+
+export interface IWorkerMessage {
+    key: string;
+    type: EWorkerMessageType;
+    data: TMessageWorkerBaseReq;
+    dataArr?: Array<TAny>
+    isRequestEnd?: boolean;
 }

@@ -2,7 +2,7 @@ export interface Result<T = undefined> {
     error?: string | Error;
     code?: number;
     success?: boolean;
-    msg?: string;
+    message?: string;
     data?: T;
 }
 
@@ -19,15 +19,16 @@ export class IResult {
         return {success: true, message} as Result;
     }
 
-    public static successDataMess<T>(data: T, message: string): Result<T> {
-        return {success: true, message, data} as Result;
+    public static successDataMess<T>( data: T, message?: string): Result<T> {
+        return {success: true, message, data} as Result<T>;
     }
 
     public static error(e: Error | string, code?: number): Result {
-        return {error: e, code: code} as Result;
+        const error = (typeof e === "string") ? new Error(e) : e
+        return {error, code, message: error.message} as Result;
     }
 
     public static errorMsg(message: string, e?: Error, code?: number): Result {
-        return {error: e, message, code} as Result;
+        return {error: new Error(message), message, code} as Result;
     }
 }
