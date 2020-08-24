@@ -1,57 +1,69 @@
 import {TAny} from '../global';
-import {EWorkerMessageType, EWorkerMode} from "../../worker/worker/worker-types";
-import {WorkerDedicate} from "../../worker/worker/worker-dedicate";
-import {MessagePort} from "worker_threads";
-import {IncomingHttpHeaders} from "http";
-import {IResult, Result} from "../../utils/IResult";
+import {EWorkerError, EWorkerMessageRequest, EWorkerMessageResponse, EWorkerMode} from "../../worker/main/worker-types";
+import {WorkerDedicate} from "../../worker/main/worker-dedicate";
+
+export interface ILogger {
+    info: (message: string) => void;
+    error: (error: string | Error) => void;
+}
 
 export interface IWorkersService {
     addPool(options: IPoolOptions): void;
 
-    addTask(namePool: string, data: TAny): void;
+    addTask<T>(namePool: string, data: TAny): Promise<T>;
+
+    close(namePool: string): void;
+
 }
 
 export interface IPoolOptions {
     name: string;
-    pathJsFile: string;
-    mode: EWorkerMode;
-    initData?: TAny;
     minPoolWorkers?: number;
     maxPoolWorkers?: number;
-    timeRunTask?: number;
     isUpWorker?: (opt: IPoolOptions, controller: IWorkerPoolController) => boolean;
     maxTaskToUpNewWorker?: number;
     callWorkerExit?: (key: string, error?: Error) => void;
+    pathJsFile: string;
+    mode: EWorkerMode;
+    initData?: TAny;
+    timeRunTask?: number;
 }
-
 
 export interface IWorkerPoolController {
 
-    newTask<T>(data: TAny): Promise<Result<T>>;
+    newTask<T>(data: TAny): Promise<T>;
 
-    getAvailableWorkers(): WorkerDedicate[];
+    checkQueueTasks(): void;
+
+    /* [available, up] */
+    getAvailableWorkers(): [WorkerDedicate[], WorkerDedicate[]];
 
     workerExit(key: string, code: number, er?: Error): void;
 
+    destroy(code: EWorkerError): void;
+
+    logger: ILogger;
 }
 
-export interface IWorkerData {
+export interface IDedicatedWorker {
+    initWorker: (initData: IWorkerMessageRequest) => void;
+    runTask: (req: IWorkerMessageRequest) => void;
+
+    sendSuccessTask(mess: IWorkerMessageRequest, error: Error | string): void;
+
+    sendErrorTask(mess: IWorkerMessageRequest, error: Error | string): void;
+}
+
+interface IWorkerMessage {
+    key: string;
     data?: TAny;
 }
 
-export type TMessageWorkerBaseReq = {
-    command: string
-}
-export type TMessageWorkerBaseResp = {
-    error?: Error | Result | string
-    respHeaders?: IncomingHttpHeaders;
-
+export interface IWorkerMessageRequest extends IWorkerMessage {
+    type: EWorkerMessageRequest;
+    execMethod?: string; // execute some method after execute runTask
 }
 
-export interface IWorkerMessage {
-    key: string;
-    type: EWorkerMessageType;
-    data: TMessageWorkerBaseReq;
-    dataArr?: Array<TAny>
-    isRequestEnd?: boolean;
+export interface IWorkerMessageResponse extends IWorkerMessage {
+    type: EWorkerMessageResponse;
 }

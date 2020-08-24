@@ -11,15 +11,15 @@ export class IResult {
         return {success: true} as Result;
     }
 
-    public static successData(data: any): Result {
-        return {success: true, data} as Result;
+    public static successData<T>(data: T): Result<T> {
+        return {success: true, data} as Result<T>;
     }
 
     public static successMess(message: string): Result {
         return {success: true, message} as Result;
     }
 
-    public static successDataMess<T>( data: T, message?: string): Result<T> {
+    public static successDataMess<T>(data: T, message?: string): Result<T> {
         return {success: true, message, data} as Result<T>;
     }
 

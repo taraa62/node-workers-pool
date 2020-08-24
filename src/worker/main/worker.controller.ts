@@ -1,17 +1,15 @@
-import {IPoolOptions, IWorkerPoolController} from "../../types/worker/worker";
+import {ILogger, IPoolOptions, IWorkerPoolController} from "../../types/worker/worker";
 import {TAny} from "../../types/global";
 import {WorkerTask} from "./worker-task";
-import {EWorkerMode} from "./worker-types";
+import {EWorkerError, EWorkerMode} from "./worker-types";
 import {WorkerDedicate} from "./worker-dedicate";
-import { Result} from "../../utils/IResult";
 
 export class WorkerController implements IWorkerPoolController {
 
     private workers: WorkerDedicate[] = [];
     private awaitQueueTasks: WorkerTask[] = [];
-    private runQueueTasks: WorkerTask[] = [];
 
-    constructor(private options: IPoolOptions) {
+    constructor(private options: IPoolOptions, public logger: ILogger) {
         if (!this.options.minPoolWorkers || this.options.minPoolWorkers < 1)
             this.options.minPoolWorkers = 1;
         if (!this.options.maxPoolWorkers || this.options.maxPoolWorkers < 1)
@@ -23,13 +21,13 @@ export class WorkerController implements IWorkerPoolController {
         }
         this.options.maxTaskToUpNewWorker = this.options.maxTaskToUpNewWorker ?? 50;
 
-        while (this.workers.length < this.options.minPoolWorkers) {
+        for (let i = 0; i < this.options.minPoolWorkers; i++) {
             this.upWorker();
         }
     }
 
-    public newTask<T>(data: TAny): Promise<Result<T>> {
-        const task: WorkerTask = new WorkerTask(data);
+    public newTask<T>(data: TAny): Promise<T> {
+        const task: WorkerTask = new WorkerTask(data, this.options.timeRunTask);
         this.awaitQueueTasks.push(task);
         this.checkQueueTasks();
         return task.getResult();
@@ -42,23 +40,23 @@ export class WorkerController implements IWorkerPoolController {
         }
     }
 
-    private checkQueueTasks(): void {
-        const workers = this.getAvailableWorkers();
+    public checkQueueTasks(): void {
+        const [availableWorkers, up] = this.getAvailableWorkers();
 
         const getWorkerWithMinTasks = (): [number, WorkerDedicate] => {
             let min = Number.MAX_VALUE;
-            let w = workers[0];
-            workers.forEach(v => {
+            let w = availableWorkers[0];
+            availableWorkers.forEach(v => {
                 if (v.numTasks < min) {
                     min = v.numTasks;
                     w = v;
                 }
-
             });
             return [min, w];
         }
         const isAddWorker = (): boolean => {
-            if (workers.length === this.options.maxPoolWorkers) return false;
+            if (availableWorkers.length === this.options.maxPoolWorkers) return false;
+            if (up.length > 0) return false;
             if (this.options.isUpWorker?.call(null, this.options, this)) {
                 return true;
             } else {
@@ -78,12 +76,12 @@ export class WorkerController implements IWorkerPoolController {
             if (this.options.mode === EWorkerMode.ASYNC) {
                 [, worker] = getWorkerWithMinTasks();
             } else {
-                worker = workers.find(v => !v.isWorkerRun);
+                worker = availableWorkers.find(v => !v.isWorkerRun);
             }
             if (worker) {
                 const task = this.awaitQueueTasks[0];
                 if (worker.runTask(task)) {
-                    this.runQueueTasks.push(this.awaitQueueTasks.shift()!);
+                    this.awaitQueueTasks.shift();
                 }
             }
         }
@@ -91,12 +89,23 @@ export class WorkerController implements IWorkerPoolController {
 
     private upWorker(): void {
         if (this.workers.length < this.options.maxPoolWorkers!) {
+            console.info(' ---- UP WORKER -----')
             this.workers.push(new WorkerDedicate(this, this.options.mode, this.options.pathJsFile, this.options.initData,));
         }
     }
 
-    public getAvailableWorkers(): WorkerDedicate[] {
-        return this.workers.filter(w => w.isWorkerOnline && !w.isWorkerStop)
+    public getAvailableWorkers(): [WorkerDedicate[], WorkerDedicate[]] {
+        const available = this.workers.filter(w => w.isWorkerOnline && !w.isWorkerStop);
+        const up = this.workers.filter(w => w.isWorkerUp && !w.isWorkerStop);
+        return [available, up]
     }
+
+
+    public destroy(code: EWorkerError): void {
+        this.workers.map(w => w.destroy(code));
+        this.workers = [];
+        this.awaitQueueTasks = [];
+    }
+
 
 }
