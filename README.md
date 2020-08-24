@@ -3,10 +3,13 @@ Add a wed-worker pool to your project
 
 ------
 1. Add new service:
- const service = new WorkerService()
+ `const service = new WorkerService()`
+ 
 2 Add 'pool-sync'
+
 2.1  'pool-sync'
-```    service.addPool({
+```    
+service.addPool({
             name: 'pool-sync',
             mode: EWorkerMode.SYNC,
             pathJsFile: './dist/src/dedicated-workers/dedicated-sync.js',
@@ -17,7 +20,8 @@ Add a wed-worker pool to your project
         });
 ```
 2.2  'pool-async'
-```      service.addPool({
+```     
+service.addPool({
             name: 'pool-async',
             mode: EWorkerMode.ASYNC,
             pathJsFile: './dist/src/dedicated-workers/dedicated-sync.js',
@@ -37,7 +41,8 @@ Add a wed-worker pool to your project
 3. Add new task
 ` service.addTask<{ d: number }>('pool-sync', {d: 1}).then(v => d.push(v.d))`
 
----- Example sync
+-------
+Example sync
 ```
        const service = new WorkerService()
         service.addPool({
@@ -60,7 +65,7 @@ Add a wed-worker pool to your project
         expect(d).toEqual([1, 2, 3, 4]);
 
 ```
------
+-------
 Example async
 ```
  const service: IWorkersService = new WorkerService()
