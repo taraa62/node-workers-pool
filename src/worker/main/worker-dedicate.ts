@@ -28,7 +28,7 @@ export class WorkerDedicate {
 
 
     constructor(private controller: IWorkerPoolController, private mode: EWorkerMode, js: string, initData?: TAny) {
-        const exist = FileUtils.exit([js]);
+        const exist = FileUtils.exist([js]);
         if (exist.error) throw new Error(`file is not exist! by path: ${exist.message}`)
         this.isUp = true;
         this.worker = new Worker(js, {workerData: {data: initData, type: EWorkerMessageRequest.INIT}});
