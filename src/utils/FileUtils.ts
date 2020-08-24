@@ -5,7 +5,7 @@ import {IResult, Result} from "./IResult";
 export class FileUtils {
 
 
-    public static exit(path: string[]): Result {
+    public static exist(path: string[]): Result {
         const file = _path.resolve(process.cwd(), ...path);
         const exist = existsSync(file);
         return exist ? IResult.success : IResult.errorMsg(file);
