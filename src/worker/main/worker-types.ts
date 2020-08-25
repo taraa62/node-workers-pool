@@ -17,6 +17,7 @@ export const enum EWorkerMessageRequest {
 
 export const enum EWorkerMessageResponse {
     ERROR,
+    CRITICAL,
     SUCCESS,
     LOGGER
 }

@@ -1,6 +1,7 @@
 import {TAny} from '../global';
 import {EWorkerError, EWorkerMessageRequest, EWorkerMessageResponse, EWorkerMode} from "../../worker/main/worker-types";
-import {WorkerDedicate} from "../../worker/main/worker-dedicate";
+import {WorkerDedicated} from "../../worker/main/worker-dedicated";
+import {WorkerTask} from "../../worker/main/worker-task";
 
 export interface ILogger {
     info: (message: string) => void;
@@ -21,12 +22,14 @@ export interface IPoolOptions {
     minPoolWorkers?: number;
     maxPoolWorkers?: number;
     isUpWorker?: (opt: IPoolOptions, controller: IWorkerPoolController) => boolean;
+    notifyAllWorkerStop?: () => void; // if isResetWorker = undefined | false and were critical errors, worker doesn't kill from list activities workers. Next step -> drop pool,  all task will execute with error result
     maxTaskToUpNewWorker?: number;
-    callWorkerExit?: (key: string, error?: Error) => void;
     pathJsFile: string;
     mode: EWorkerMode;
     initData?: TAny;
     timeRunTask?: number;
+    isResetWorker?:boolean; // default:true, if the worker falls, controller will raise a new.
+    maxResetTask?:number; // default = -1; -newer reset if the task throw an error.
 }
 
 export interface IWorkerPoolController {
@@ -36,9 +39,9 @@ export interface IWorkerPoolController {
     checkQueueTasks(): void;
 
     /* [available, up] */
-    getAvailableWorkers(): [WorkerDedicate[], WorkerDedicate[]];
+    getAvailableWorkers(): [available: number, up: number, run: number, stop: number];
 
-    workerExit(key: string, code: number, er?: Error): void;
+    closeWorker(worker: WorkerDedicated, tasks: Map<string, WorkerTask>): void;
 
     destroy(code: EWorkerError): void;
 

@@ -9,14 +9,10 @@ import {
 } from "./worker-types";
 import {FileUtils} from "../../utils/FileUtils";
 import {Worker} from "worker_threads";
-import {
-    ILogger,
-    IWorkerMessageResponse,
-    IWorkerPoolController
-} from "../../types/worker/worker";
+import {ILogger, IWorkerMessageResponse, IWorkerPoolController} from "../../types/worker/worker";
 import {TAny} from "../../types/global";
 
-export class WorkerDedicate {
+export class WorkerDedicated {
 
     public readonly key: string = Random.randomString();
     private isOnline = false;
@@ -35,12 +31,52 @@ export class WorkerDedicate {
         this.addListenerWorker();
     }
 
-    //
+    public get isWorkerUp(): boolean {
+        return this.isUp;
+    }
+
+    public get isWorkerOnline(): boolean {
+        return this.isOnline;
+    }
+
+    public get isWorkerRun(): boolean {
+        return this.isRun;
+    }
+
+    public get isWorkerStop(): boolean {
+        return this.isStop;
+    }
+
+    public get numTasks(): number {
+        return this.mapTasks.size;
+    }
+
+    public runTask(task: WorkerTask): boolean {
+        if (this.mode === EWorkerMode.SYNC && this.numTasks) return false;
+        this.mapTasks.set(task.key, task);
+        task.run(this);
+        this.worker.postMessage(new WorkerMessageRequest(task.key, EWorkerMessageRequest.RUN_TASK, task.data));
+        this.isRun = true;
+        return true;
+    }
+
+    public closeTaskByTimer(key: string): void {
+        this.closeTask(key, new Error('The task closes at the end of the timer.'))
+    }
+
+    public destroy(code: EWorkerError, error?: Error): void {
+        this.isStop = true;
+        if (code === EWorkerError.WORKER_CLOSE) {
+            this.worker.postMessage(new WorkerMessageRequest('close', EWorkerMessageRequest.CLOSE_WORKER, {code: EWorkerMessageRequest.CLOSE_WORKER}));
+            this.mapTasks.forEach(v => v.setRunDataWorker(error || new Error('Worker is close')));
+        }
+        this.mapTasks.clear();
+
+    }
+
     private addListenerWorker(): void {
         this.worker.on("error", (error: Error) => {
-            this.isOnline = false;
-            if (this.isStop) return;
-            this.destroy(EWorkerError.INTERNAl_WORKER_ERROR, error);
+            this.workerError(error);
         });
         this.worker.on("exit", () => {
             this.isOnline = false;
@@ -61,7 +97,9 @@ export class WorkerDedicate {
             if (this.isStop) return;
             try {
                 if (mess.type === EWorkerMessageResponse.LOGGER) {
-                   this.controller.logger[mess.key as keyof ILogger](mess.data);
+                    this.controller.logger[mess.key as keyof ILogger](mess.data);
+                } else if (mess.type === EWorkerMessageResponse.CRITICAL) {
+                    this.workerError(mess.data);
                 } else {
                     this.closeTask(mess.key, mess.data);
                 }
@@ -69,19 +107,6 @@ export class WorkerDedicate {
                 this.destroy(EWorkerError.INTERNAL_HANDLER_ERROR, e);
             }
         });
-    }
-
-    public runTask(task: WorkerTask): boolean {
-        if (this.mode === EWorkerMode.SYNC && this.numTasks) return false;
-        this.mapTasks.set(task.key, task);
-        task.run(this);
-        this.worker.postMessage(new WorkerMessageRequest(task.key, EWorkerMessageRequest.RUN_TASK, task.data));
-        this.isRun = true;
-        return true;
-    }
-
-    public closeTaskByTimer(key: string): void {
-        this.closeTask(key, new Error('The task closes at the end of the timer.'))
     }
 
     private closeTask(key: string, result: TAny): void {
@@ -93,34 +118,12 @@ export class WorkerDedicate {
         }
         this.controller.checkQueueTasks();
     }
-    public get isWorkerUp(): boolean {
-        return this.isUp;
-    }
-    public get isWorkerOnline(): boolean {
-        return this.isOnline;
-    }
 
-    public get isWorkerRun(): boolean {
-        return this.isRun;
-    }
-
-    public get isWorkerStop(): boolean {
-        return this.isStop;
-    }
-
-
-    public get numTasks(): number {
-        return this.mapTasks.size;
-    }
-
-    public destroy(code: EWorkerError, error?: Error): void {
-        this.isStop = true;
-        if (code === EWorkerError.WORKER_CLOSE) {
-            this.worker.postMessage(new WorkerMessageRequest('close', EWorkerMessageRequest.CLOSE_WORKER, {code: EWorkerMessageRequest.CLOSE_WORKER}));
-        }
-        this.mapTasks.clear();
-
-        this.controller.workerExit(this.key, code, error);
+    private workerError(error: Error) {
+        this.isOnline = false;
+        if (this.isStop) return;
+        this.controller.closeWorker(this, this.mapTasks);
+        this.destroy(EWorkerError.INTERNAl_WORKER_ERROR, error);
     }
 }
 

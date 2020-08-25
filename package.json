@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "jest --forceExit --silent"
+    "test": "jest --forceExit --silent",
+    "testTS": "ts-node ./test/testTypeScript4.ts"
   },
   "keywords": [],
   "author": "",

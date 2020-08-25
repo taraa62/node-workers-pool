@@ -1,10 +1,11 @@
 import {Random} from "../../utils/Random";
 import {IResult} from "../../utils/IResult";
 import {TAny} from "../../types/global";
-import {WorkerDedicate} from "./worker-dedicate";
+import {WorkerDedicated} from "./worker-dedicated";
 import {clearTimeout} from "timers";
 
-export class WorkerTask<T = any> {
+
+export class WorkerTask<T = TAny> {
     private keyTask: string = Random.randomString(16); //key, for stop run current task;
     private readonly iRes: Promise<T>;
     private resolve!: Function;
@@ -12,13 +13,13 @@ export class WorkerTask<T = any> {
     private isRun: boolean = false;
     private isStop: boolean = false;
     private timerKey?: NodeJS.Timeout;
-    private worker?: WorkerDedicate;
+    private worker?: WorkerDedicated;
+    private numReset = 0;
 
-    constructor(public data: TAny, timer: number = -1) {
+    constructor(public data: TAny, timer: number = -1, private maxReset = -1) {
         this.iRes = new Promise<T>((res) => {
             this.resolve = res;
         })
-
         if (timer ! > 0) {
             this.timerKey = setTimeout(() => {
                 if (!this.isStop) {
@@ -33,13 +34,22 @@ export class WorkerTask<T = any> {
         return this.keyTask;
     }
 
-    public run(worker: WorkerDedicate): void {
+    public get isRunTask(): boolean {
+        return this.isRun;
+    }
+
+    public run(worker: WorkerDedicated): void {
         this.isRun = true;
         this.worker = worker;
     }
 
-    public get isRunTask(): boolean {
-        return this.isRun;
+    public reset(): boolean {
+        this.numReset++;
+        if (this.maxReset > 0 && this.numReset <= this.maxReset) {
+            this.isRun = false;
+            this.worker = undefined;
+            return true;
+        } else return false;
     }
 
     /**

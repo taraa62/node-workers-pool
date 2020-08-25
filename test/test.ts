@@ -13,9 +13,14 @@ describe('Worker tests', () => {
             mode: EWorkerMode.SYNC,
             pathJsFile: './dist/src/dedicated-workers/dedicated-sync.js',
             minPoolWorkers: 1,
-            // maxPoolWorkers: 2,
+            maxPoolWorkers: 2,
             maxTaskToUpNewWorker: 2,
-            initData: 'hello worker))'
+            initData: 'hello worker))',
+            maxResetTask: 2,
+            isResetWorker: false,
+            notifyAllWorkerStop: () => {
+                console.table({error: 'all worker stopped'})
+            }
         });
         const d: number[] = [];
 
@@ -27,9 +32,9 @@ describe('Worker tests', () => {
         await pause(5000);
         service.close('pool');
         expect(d).toEqual([1, 2, 3, 4]);
-    }, 20000)
+    }, 30000)
 
-    test('test async', async () => {
+    test.skip('test async', async () => {
         const service: IWorkersService = new WorkerService()
         service.addPool({
             name: 'pool',
@@ -39,13 +44,11 @@ describe('Worker tests', () => {
             maxPoolWorkers: 10,
             initData: 'hello worker))',
             // we can control the rising of the worker
-            isUpWorker: (opt, controller): boolean => {
+            /*isUpWorker: (opt, controller): boolean => {
                 const [avail, up] = controller.getAvailableWorkers();
-                return !up.length && avail.length < 2
-            },
-            callWorkerExit: (key: string, error?: Error) => {
-                console.info(key, error);
-            }
+                return !up && avail < 2
+            }*/
+
         })
 
         const d: number[] = [];
