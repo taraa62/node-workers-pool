@@ -38,17 +38,16 @@ export class WorkerController implements IWorkerPoolController {
     }
 
     public checkQueueTasks(): void {
-        const [numAvailable, numUp, numRun, numStop ] = this.getAvailableWorkers();
-
+        const [numAvailable, numUp, numRun, numStop] = this.getAvailableWorkers();
 
 
         if (numStop === this.options.maxPoolWorkers) {
             try {
-                this.options.notifyAllWorkerStop?.call(null);
+                this.options.dropPool?.call(null);
             } finally {
                 this.service.close(this.options.name);
             }
-        }else {
+        } else {
             const availableWorkers = this.workers.filter(w => w.isWorkerOnline && !w.isWorkerStop);
             const getWorkerWithMinTasks = (): [number, WorkerDedicated] => {
                 let min = Number.MAX_VALUE;
@@ -62,30 +61,31 @@ export class WorkerController implements IWorkerPoolController {
                 return [min, w];
             }
             const isAddWorker = (): boolean => {
-                if(numAvailable<1){
-                    if(numUp>0)return false;
-                    const total = numUp + numRun+numStop;
-                }
-
-
-                if (numAvailable < this.options.minPoolWorkers! && numUp < this.options.minPoolWorkers! && numUp) return true;
-                if (numAvailable === this.options.maxPoolWorkers) return false;
-                if (numUp > 0) return false;
-                if (this.options.isUpWorker?.call(null, this.options, this)) {
-                    return true;
-                } else {
-                    // якщо синхронний і задач які чекають на виконнання більше 5, то піднімаємо
-                    //якщо асинхронний і мінімальна кількість задач які обробляються на данний момент >=
-                    if (this.options.mode === EWorkerMode.SYNC) {
-                        return this.awaitQueueTasks.length > 5
+                if (this.workers.length < this.options.minPoolWorkers!) return true;
+                else if (numAvailable > 0) return false;
+                else {
+                    if (numUp > 0) return false;
+                    if (this.workers.length === this.options.maxPoolWorkers!) return false;
+                    if ((numRun + numStop) >= this.options.maxPoolWorkers!) return false;
+                    if (numAvailable === this.options.maxPoolWorkers) return false;
+                    if (this.options.isUpWorker?.call(null, this.options, this)) {
+                        return true;
                     } else {
-                        const [min,] = getWorkerWithMinTasks();
-                        return min >= this.options.maxTaskToUpNewWorker!;
+                        // якщо синхронний і задач які чекають на виконнання більше 5, то піднімаємо
+                        //якщо асинхронний і мінімальна кількість задач які обробляються на данний момент >=
+                        if (this.options.mode === EWorkerMode.SYNC) {
+                            return this.awaitQueueTasks.length > 5
+                        } else {
+                            const [min,] = getWorkerWithMinTasks();
+                            return min >= this.options.maxTaskToUpNewWorker!;
+                        }
                     }
                 }
             }
             if (this.awaitQueueTasks.length) {
-                if (isAddWorker()) this.upWorker();
+                const isAdd = isAddWorker();
+                if (isAdd || !isAdd && this.workers.length < this.options.maxPoolWorkers!) this.upWorker();
+
                 let worker: WorkerDedicated | undefined;
                 if (this.options.mode === EWorkerMode.ASYNC) {
                     [, worker] = getWorkerWithMinTasks();
@@ -94,7 +94,7 @@ export class WorkerController implements IWorkerPoolController {
                 }
                 if (worker) {
                     const task = this.awaitQueueTasks.shift();
-                    console.table(task);
+
                     if (task && !worker.runTask(task)) {
                         this.awaitQueueTasks.unshift(task);
                     }

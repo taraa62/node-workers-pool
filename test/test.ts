@@ -1,4 +1,4 @@
-import {WorkerService} from "../src/worker/main/worker.service";
+import {WebService} from "../index";
 import {EWorkerMode} from "../src/worker/main/worker-types";
 import util from "util";
 import {IWorkersService} from "../src/types/worker/worker";
@@ -7,7 +7,7 @@ const pause = util.promisify(setTimeout);
 
 describe('Worker tests', () => {
     test('test sync', async () => {
-        const service = new WorkerService()
+        const service = new WebService()
         service.addPool({
             name: 'pool',
             mode: EWorkerMode.SYNC,
@@ -16,9 +16,9 @@ describe('Worker tests', () => {
             maxPoolWorkers: 2,
             maxTaskToUpNewWorker: 2,
             initData: 'hello worker))',
-            maxResetTask: 2,
-            isResetWorker: false,
-            notifyAllWorkerStop: () => {
+            maxResetTask: 5,
+            isResetWorker: true,
+            dropPool: () => {
                 console.table({error: 'all worker stopped'})
             }
         });
@@ -35,7 +35,7 @@ describe('Worker tests', () => {
     }, 30000)
 
     test.skip('test async', async () => {
-        const service: IWorkersService = new WorkerService()
+        const service: IWorkersService = new WebService()
         service.addPool({
             name: 'pool',
             mode: EWorkerMode.ASYNC,

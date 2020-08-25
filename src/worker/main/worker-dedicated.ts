@@ -57,6 +57,8 @@ export class WorkerDedicated {
         task.run(this);
         this.worker.postMessage(new WorkerMessageRequest(task.key, EWorkerMessageRequest.RUN_TASK, task.data));
         this.isRun = true;
+        console.log('run-: ',)
+        console.table(task);
         return true;
     }
 
@@ -122,6 +124,7 @@ export class WorkerDedicated {
     private workerError(error: Error) {
         this.isOnline = false;
         if (this.isStop) return;
+        this.isStop = true;
         this.controller.closeWorker(this, this.mapTasks);
         this.destroy(EWorkerError.INTERNAl_WORKER_ERROR, error);
     }

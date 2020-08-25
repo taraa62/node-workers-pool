@@ -3,7 +3,7 @@ Add a wed-worker pool to your project
 
 ------
 1. Add new service:
- `const service = new WorkerService()`
+ `const service = new Index()`
  
 2 Add 'pool-sync'
 
@@ -44,7 +44,7 @@ service.addPool({
 -------
 Example sync
 ```
-       const service = new WorkerService()
+       const service = new Index()
         service.addPool({
             name: 'pool',
             mode: EWorkerMode.SYNC,
@@ -68,7 +68,7 @@ Example sync
 -------
 Example async
 ```
- const service: IWorkersService = new WorkerService()
+ const service: IWorkersService = new Index()
         service.addPool({
             name: 'pool',
             mode: EWorkerMode.ASYNC,

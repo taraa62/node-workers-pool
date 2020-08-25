@@ -22,7 +22,7 @@ export interface IPoolOptions {
     minPoolWorkers?: number;
     maxPoolWorkers?: number;
     isUpWorker?: (opt: IPoolOptions, controller: IWorkerPoolController) => boolean;
-    notifyAllWorkerStop?: () => void; // if isResetWorker = undefined | false and were critical errors, worker doesn't kill from list activities workers. Next step -> drop pool,  all task will execute with error result
+    dropPool?: () => void; // if isResetWorker = undefined | false and were critical errors, worker doesn't kill from list activities workers. Next step -> drop pool,  all task will execute with error result
     maxTaskToUpNewWorker?: number;
     pathJsFile: string;
     mode: EWorkerMode;

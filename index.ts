@@ -1,11 +1,11 @@
-import {ILogger, IPoolOptions, IWorkerPoolController, IWorkersService} from "../../types/worker/worker";
-import {IResult} from "../../utils/IResult";
-import {WorkerController} from "./worker.controller";
-import {TAny} from "../../types/global";
-import {EWorkerError} from "./worker-types";
+import {ILogger, IPoolOptions, IWorkerPoolController, IWorkersService} from "./src/types/worker/worker";
+import {IResult} from "./src/utils/IResult";
+import {WorkerController} from "./src/worker/main/worker.controller";
+import {TAny} from "./src/types/global";
+import {EWorkerError} from "./src/worker/main/worker-types";
 
 
-export class WorkerService implements IWorkersService {
+export class WebService implements IWorkersService {
 
     private listWorkerPool: Map<string, IWorkerPoolController> = new Map<string, IWorkerPoolController>();
 
