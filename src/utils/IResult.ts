@@ -1,4 +1,4 @@
-export interface Result<T = undefined> {
+export interface Result<T = unknown> {
     error?: string | Error;
     code?: number;
     success?: boolean;

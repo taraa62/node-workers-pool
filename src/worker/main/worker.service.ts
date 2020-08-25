@@ -14,12 +14,13 @@ export class WorkerService implements IWorkersService {
 
     public addPool(options: IPoolOptions): void {
         if (options?.name && !this.listWorkerPool.has(options.name)) {
-            this.listWorkerPool.set(options.name, new WorkerController(options, this.logger));
+            this.listWorkerPool.set(options.name, new WorkerController(this, options, this.logger));
         } else
             throw IResult.errorMsg("The option is invalid or the pool exists");
     }
 
     public addTask<T>(namePool: string, data: TAny): Promise<T> {
+        console.debug('--- ADD new Task - ' , data)
         if (this.listWorkerPool.has(namePool)) {
             return this.listWorkerPool.get(namePool)!.newTask<T>(data);
         }
