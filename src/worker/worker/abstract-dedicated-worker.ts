@@ -22,7 +22,6 @@ class DedicatedLogger {
 export abstract class AbstractDedicatedWorker {
 
     protected logger: DedicatedLogger = new DedicatedLogger();
-    private reset = 0;
 
 
     constructor() {
@@ -59,25 +58,20 @@ export abstract class AbstractDedicatedWorker {
     }
 
     protected async newMessage(mess: IWorkerMessageRequest): Promise<TAny> {
-        if (mess.data.d === 2 && this.reset < 3) {
-            this.reset++;
-            throw new Error('Test d:2 Error')
+        try {
+            switch (mess.type) {
+                case EWorkerMessageRequest.INIT:
+                    return this.initWorker(mess);
+                case EWorkerMessageRequest.RUN_TASK:
+                    return await this.execFunc(mess);
+                case EWorkerMessageRequest.CLOSE_WORKER:
+                    return process.exit(mess.data.code || 99);
+                default:
+                    this.sendErrorTask(mess, 'Undefined type of WorkerMessageRequest');
+            }
+        } catch (er) {
+            this.sendErrorTask(mess, er);
         }
-
-        // try {
-        switch (mess.type) {
-            case EWorkerMessageRequest.INIT:
-                return this.initWorker(mess);
-            case EWorkerMessageRequest.RUN_TASK:
-                return await this.execFunc(mess);
-            case EWorkerMessageRequest.CLOSE_WORKER:
-                return process.exit(mess.data.code || 99);
-            default:
-                this.sendErrorTask(mess, 'Undefined type of WorkerMessageRequest');
-        }
-        // } catch (er) {
-        //     this.sendErrorTask(mess, er);
-        // }
     }
 
     private async execFunc(mess: IWorkerMessageRequest): Promise<TAny> {
