@@ -1,9 +1,15 @@
 import {parentPort, workerData} from "worker_threads";
-import {EWorkerMessageRequest, EWorkerMessageResponse, WorkerMessageResponse} from "../main/worker-types";
-import {IWorkerMessageRequest, TAny} from "../../../types/worker";
+import {
+    EWorkerMessageRequest,
+    EWorkerMessageResponse,
+    IDedicatedLogger,
+    IWorkerMessageRequest,
+    TAny
+} from "../../../types/worker";
+import {WorkerMessageResponse} from "../main/worker-types";
 
 
-class DedicatedLogger {
+class DedicatedLogger implements IDedicatedLogger{
     constructor() {
     }
 
@@ -20,7 +26,7 @@ class DedicatedLogger {
 
 export abstract class AbstractDedicatedWorker {
 
-    protected logger: DedicatedLogger = new DedicatedLogger();
+    public logger: DedicatedLogger = new DedicatedLogger();
 
 
     constructor() {

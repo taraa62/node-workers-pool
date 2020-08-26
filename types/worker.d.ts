@@ -1,10 +1,36 @@
-import {EWorkerError, EWorkerMessageRequest, EWorkerMessageResponse, EWorkerMode} from "../src/worker/main/worker-types";
 import {WorkerDedicated} from "../src/worker/main/worker-dedicated";
 import {WorkerTask} from "../src/worker/main/worker-task";
 
+
+export const enum EWorkerMode {
+    SYNC = 0,
+    ASYNC = 1
+}
+
+export const enum EWorkerMessageRequest {
+    INIT,
+    RUN_TASK,
+    CLOSE_WORKER,
+}
+
+export const enum EWorkerMessageResponse {
+    ERROR,
+    CRITICAL,
+    SUCCESS,
+    LOGGER
+}
+
+export const enum EWorkerError {
+    INTERNAl_WORKER_ERROR = 1,
+    INTERNAL_HANDLER_ERROR = 2,
+    WORKER_EXIT = 100,
+    WORKER_CLOSE = 100 // user closed worker
+}
+
 export interface ILogger {
-    info: (message: string) => void;
-    error: (error: string | Error) => void;
+    info(message: string): void;
+
+    error(error: string | Error): void;
 }
 
 interface IWorkerService {
@@ -34,15 +60,16 @@ export interface IPoolOptions {
     name: string;
     minPoolWorkers?: number;
     maxPoolWorkers?: number;
-    isUpWorker?: (opt: IPoolOptions, controller: IWorkerPoolController) => boolean;
-    dropPool?: () => void; // if isResetWorker = undefined | false and were critical errors, worker doesn't kill from list activities workers. Next step -> drop pool,  all task will execute with error result
     maxTaskToUpNewWorker?: number;
     pathJsFile: string;
     mode: EWorkerMode;
     initData?: TAny;
     timeRunTask?: number;
-    isResetWorker?:boolean; // default:true, if the worker falls, controller will raise a new.
-    maxResetTask?:number; // default = -1; -newer reset if the task throw an error.
+    isResetWorker?: boolean; // default:true, if the worker falls, controller will raise a new.
+    maxResetTask?: number; // default = -1; -newer reset if the task throw an error.
+
+    isUpWorker?(opt: IPoolOptions, controller: IWorkerPoolController): boolean;
+    dropPool?(): void; // if isResetWorker = undefined | false and were critical errors, worker doesn't kill from list activities workers. Next step -> drop pool,  all task will execute with error result
 }
 
 export interface IWorkerPoolController {
@@ -61,25 +88,38 @@ export interface IWorkerPoolController {
     logger: ILogger;
 }
 
+export interface IDedicatedLogger {
+    info(message: string): void;
+
+    error(message: string | Error): void;
+}
+
 export interface IDedicatedWorker {
-    initWorker: (initData: IWorkerMessageRequest) => void;
 
-    runTask: (req: IWorkerMessageRequest) => void;
+    logger: IDedicatedLogger
 
-    sendSuccessTask(mess: IWorkerMessageRequest, error: Error | string): void;
+    initWorker(initData: IWorkerMessageRequest): void;
+
+    runTask(req: IWorkerMessageRequest): void;
+
+    sendSuccessTask(mess: IWorkerMessageRequest, data?: TAny): void;
 
     sendErrorTask(mess: IWorkerMessageRequest, error: Error | string): void;
+
+    sendCriticalError(error: Error | TAny): void
 }
 
 
-declare class AbstractDedicatedWorker implements IDedicatedWorker{
+declare class AbstractDedicatedWorker implements IDedicatedWorker {
     constructor();
 
-    initWorker: (initData: IWorkerMessageRequest) => void;
+    readonly logger: IDedicatedLogger
 
-    runTask: (req: IWorkerMessageRequest) => void;
+    initWorker(initData: IWorkerMessageRequest): void;
 
-    sendSuccessTask(mess: IWorkerMessageRequest, error: Error | string): void;
+    runTask(req: IWorkerMessageRequest): void;
+
+    sendSuccessTask(mess: IWorkerMessageRequest, data?: TAny): void;
 
     sendErrorTask(mess: IWorkerMessageRequest, error: Error | string): void;
 
