@@ -1,8 +1,7 @@
 import {
     IWorkerMessageRequest,
-    IWorkerMessageResponse,
-} from "../../types/worker/worker";
-import {TAny} from "../../types/global";
+    IWorkerMessageResponse, TAny,
+} from "../../../types/worker";
 
 export const enum EWorkerMode {
     SYNC = 0,

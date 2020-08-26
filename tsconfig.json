@@ -4,9 +4,9 @@
   "compilerOptions": {
     "module": "commonjs",
     "target": "ES2018",
-//    "rootDir": "./",
-    "outDir": "dist",
-    "sourceMap": true,
+    "rootDir": "./",
+    "outDir": "./dist",
+    "sourceMap": false,
     "strict": true,
     "alwaysStrict": false,
     "noImplicitAny": true,
