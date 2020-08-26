@@ -1,13 +1,20 @@
 {
   "name": "pool-web-worker",
-  "version": "1.0.0",
+  "version": "1.0.7",
   "description": "",
-  "main": "index.js",
+  "main": "./dist/src/worker-service.js",
   "scripts": {
     "test": "jest --forceExit --silent",
     "testTS": "ts-node ./test/testTypeScript4.ts"
   },
-  "keywords": ["npm", "web-worker"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/taraa62/web-worker"
+  },
+  "keywords": ["npm", "pool-web-worker"],
+  "bugs": {
+    "url": "https://github.com/taraa62/web-worker/issues"
+  },
   "author": "taraa62",
   "license": "ISC",
   "dependencies": {},

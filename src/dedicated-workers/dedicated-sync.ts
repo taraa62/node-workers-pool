@@ -1,8 +1,7 @@
 import {AbstractDedicatedWorker} from "../worker/worker/abstract-dedicated-worker";
-import {IDedicatedWorker, IWorkerMessageRequest} from "../types/worker/worker";
+import {IDedicatedWorker, IWorkerMessageRequest} from "../../types/worker";
 
 export class DedicatedSync extends AbstractDedicatedWorker implements IDedicatedWorker {
-
 
     public initWorker(initData: IWorkerMessageRequest): void {
         this.logger.info('WORKER: initData - ' + JSON.stringify(initData));
@@ -15,7 +14,6 @@ export class DedicatedSync extends AbstractDedicatedWorker implements IDedicated
             this.sendSuccessTask(mess, mess.data)
         }, 1500)
     }
-
 }
 
 new DedicatedSync();

@@ -9,8 +9,7 @@ import {
 } from "./worker-types";
 import {FileUtils} from "../../utils/FileUtils";
 import {Worker} from "worker_threads";
-import {ILogger, IWorkerMessageResponse, IWorkerPoolController} from "../../types/worker/worker";
-import {TAny} from "../../types/global";
+import {ILogger, IWorkerMessageResponse, IWorkerPoolController, TAny} from "../../../types/worker";
 
 export class WorkerDedicated {
 

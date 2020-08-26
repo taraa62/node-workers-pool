@@ -1,8 +1,8 @@
 import {Random} from "../../utils/Random";
 import {IResult} from "../../utils/IResult";
-import {TAny} from "../../types/global";
 import {WorkerDedicated} from "./worker-dedicated";
 import {clearTimeout} from "timers";
+import {TAny} from "../../../types/worker";
 
 
 export class WorkerTask<T = TAny> {

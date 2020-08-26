@@ -1,13 +1,14 @@
-import {WebService} from "../index";
 import {EWorkerMode} from "../src/worker/main/worker-types";
 import util from "util";
-import {IWorkersService} from "../src/types/worker/worker";
+import {IWorkerService} from "../types/worker";
+import {WorkerService} from "../src/worker-service";
+
 
 const pause = util.promisify(setTimeout);
 
 describe('Worker tests', () => {
     test('test sync', async () => {
-        const service = new WebService()
+        const service:IWorkerService = new WorkerService()
         service.addPool({
             name: 'pool',
             mode: EWorkerMode.SYNC,
@@ -34,8 +35,8 @@ describe('Worker tests', () => {
         expect(d).toEqual([1, 2, 3, 4]);
     }, 30000)
 
-    test.skip('test async', async () => {
-        const service: IWorkersService = new WebService()
+    test('test async', async () => {
+        const service: IWorkerService = new WorkerService()
         service.addPool({
             name: 'pool',
             mode: EWorkerMode.ASYNC,

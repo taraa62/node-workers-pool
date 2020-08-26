@@ -1,21 +1,34 @@
-import {TAny} from '../global';
-import {EWorkerError, EWorkerMessageRequest, EWorkerMessageResponse, EWorkerMode} from "../../worker/main/worker-types";
-import {WorkerDedicated} from "../../worker/main/worker-dedicated";
-import {WorkerTask} from "../../worker/main/worker-task";
+import {EWorkerError, EWorkerMessageRequest, EWorkerMessageResponse, EWorkerMode} from "../src/worker/main/worker-types";
+import {WorkerDedicated} from "../src/worker/main/worker-dedicated";
+import {WorkerTask} from "../src/worker/main/worker-task";
 
 export interface ILogger {
     info: (message: string) => void;
     error: (error: string | Error) => void;
 }
 
-export interface IWorkersService {
+interface IWorkerService {
     addPool(options: IPoolOptions): void;
 
     addTask<T>(namePool: string, data: TAny): Promise<T>;
 
     close(namePool: string): void;
-
 }
+
+
+export type TAnyObject = Record<string, any>
+export type TAny<T = any> = string | number | boolean | TAnyObject | T;
+
+export declare class WorkerService implements IWorkerService {
+    constructor();
+
+    addPool(options: IPoolOptions): void;
+
+    addTask<T>(namePool: string, data: TAny): Promise<T>;
+
+    close(namePool: string): void;
+}
+
 
 export interface IPoolOptions {
     name: string;
@@ -50,12 +63,29 @@ export interface IWorkerPoolController {
 
 export interface IDedicatedWorker {
     initWorker: (initData: IWorkerMessageRequest) => void;
+
     runTask: (req: IWorkerMessageRequest) => void;
 
     sendSuccessTask(mess: IWorkerMessageRequest, error: Error | string): void;
 
     sendErrorTask(mess: IWorkerMessageRequest, error: Error | string): void;
 }
+
+
+declare class AbstractDedicatedWorker implements IDedicatedWorker{
+    constructor();
+
+    initWorker: (initData: IWorkerMessageRequest) => void;
+
+    runTask: (req: IWorkerMessageRequest) => void;
+
+    sendSuccessTask(mess: IWorkerMessageRequest, error: Error | string): void;
+
+    sendErrorTask(mess: IWorkerMessageRequest, error: Error | string): void;
+
+    sendCriticalError(error: Error | TAny): void;
+}
+
 
 interface IWorkerMessage {
     key: string;

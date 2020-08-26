@@ -1,7 +1,6 @@
 import {parentPort, workerData} from "worker_threads";
 import {EWorkerMessageRequest, EWorkerMessageResponse, WorkerMessageResponse} from "../main/worker-types";
-import {IWorkerMessageRequest} from "../../types/worker/worker";
-import {TAny} from "../../types/global";
+import {IWorkerMessageRequest, TAny} from "../../../types/worker";
 
 
 class DedicatedLogger {
@@ -52,7 +51,7 @@ export abstract class AbstractDedicatedWorker {
         parentPort?.postMessage(response);
     }
 
-    public sendCriticalError(error: Error | any): void {
+    public sendCriticalError(error: Error | TAny): void {
         const response = new WorkerMessageResponse('error', EWorkerMessageResponse.CRITICAL, typeof error === "string" ? new Error(error) : error);
         parentPort?.postMessage(response);
     }

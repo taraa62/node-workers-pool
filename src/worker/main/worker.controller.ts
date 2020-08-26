@@ -1,5 +1,4 @@
-import {ILogger, IPoolOptions, IWorkerPoolController, IWorkersService} from "../../types/worker/worker";
-import {TAny} from "../../types/global";
+import {ILogger, IPoolOptions, IWorkerPoolController, TAny, WorkerService} from "../../../types/worker";
 import {WorkerTask} from "./worker-task";
 import {EWorkerError, EWorkerMode} from "./worker-types";
 import {WorkerDedicated} from "./worker-dedicated";
@@ -9,7 +8,7 @@ export class WorkerController implements IWorkerPoolController {
     private workers: WorkerDedicated[] = [];
     private awaitQueueTasks: WorkerTask[] = [];
 
-    constructor(private service: IWorkersService, private options: IPoolOptions, public logger: ILogger) {
+    constructor(private service: WorkerService, private options: IPoolOptions, public logger: ILogger) {
         if (!this.options.minPoolWorkers || this.options.minPoolWorkers < 1)
             this.options.minPoolWorkers = 1;
         if (!this.options.maxPoolWorkers || this.options.maxPoolWorkers < 1)
