@@ -1,15 +1,18 @@
 import {Random} from "../../utils/Random";
 import {WorkerTask} from "./worker-task";
+import {WorkerMessageRequest} from "./worker-types";
+import {FileUtils} from "../../utils/FileUtils";
+import {Worker} from "worker_threads";
 import {
     EWorkerError,
     EWorkerMessageRequest,
     EWorkerMessageResponse,
     EWorkerMode,
-    WorkerMessageRequest
-} from "./worker-types";
-import {FileUtils} from "../../utils/FileUtils";
-import {Worker} from "worker_threads";
-import {ILogger, IWorkerMessageResponse, IWorkerPoolController, TAny} from "../../../types/worker";
+    ILogger,
+    IWorkerMessageResponse,
+    IWorkerPoolController,
+    TAny
+} from "../../../worker";
 
 export class WorkerDedicated {
 

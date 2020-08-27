@@ -1,7 +1,7 @@
-import {EWorkerMode} from "../src/worker/main/worker-types";
 import util from "util";
-import {IWorkerService} from "../types/worker";
-import {WorkerService} from "../src/worker-service";
+import {EWorkerMode, IWorkerService} from "../worker";
+import {WorkerService} from "../worker-service";
+
 
 
 const pause = util.promisify(setTimeout);
@@ -12,7 +12,7 @@ describe('Worker tests', () => {
         service.addPool({
             name: 'pool',
             mode: EWorkerMode.SYNC,
-            pathJsFile: './dist/src/dedicated-workers/dedicated-sync.js',
+            pathJsFile: './src/dedicated-workers/dedicated-sync.js',
             minPoolWorkers: 1,
             maxPoolWorkers: 2,
             maxTaskToUpNewWorker: 2,
@@ -40,7 +40,7 @@ describe('Worker tests', () => {
         service.addPool({
             name: 'pool',
             mode: EWorkerMode.ASYNC,
-            pathJsFile: './dist/src/dedicated-workers/dedicated-sync.js',
+            pathJsFile: './src/dedicated-workers/dedicated-sync.js',
             minPoolWorkers: 1,
             maxPoolWorkers: 10,
             initData: 'hello worker))',

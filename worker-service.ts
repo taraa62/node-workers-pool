@@ -1,7 +1,13 @@
-import {ILogger, IPoolOptions, IWorkerPoolController, IWorkerService, TAny} from "../types/worker";
-import {IResult} from "./utils/IResult";
-import {WorkerController} from "./worker/main/worker.controller";
-import {EWorkerError} from "./worker/main/worker-types";
+import {IResult} from "./src/utils/IResult";
+import {WorkerController} from "./src/worker/main/worker.controller";
+import {
+    EWorkerError,
+    ILogger,
+    IPoolOptions,
+    IWorkerPoolController,
+    IWorkerService,
+    TAny
+} from "./worker";
 
 
 export class WorkerService implements IWorkerService {

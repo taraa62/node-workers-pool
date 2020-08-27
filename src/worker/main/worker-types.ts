@@ -1,8 +1,10 @@
 import {
-    EWorkerMessageRequest, EWorkerMessageResponse,
+    EWorkerMessageRequest,
+    EWorkerMessageResponse,
     IWorkerMessageRequest,
-    IWorkerMessageResponse, TAny,
-} from "../../../types/worker";
+    IWorkerMessageResponse,
+    TAny
+} from "../../../worker";
 
 
 export class WorkerMessageRequest implements IWorkerMessageRequest {
