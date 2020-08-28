@@ -6,7 +6,7 @@ import {
     IDedicatedLogger,
     IWorkerMessageRequest,
     TAny
-} from "../../../worker";
+} from "../../../types/worker";
 
 
 class DedicatedLogger implements IDedicatedLogger {

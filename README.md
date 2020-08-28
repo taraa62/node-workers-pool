@@ -1,5 +1,6 @@
 # pool-web-worker
 Add a wed-worker pool to your project
+(Now only for nodejs)
 
 ------
 Options for WorkerService:
@@ -18,7 +19,7 @@ Options for WorkerService:
     maxResetTask?:number; // default = -1; -newer reset if the task throw an error.
 ```
 -------
-Example sync: (`./node_modules/pool-web-worker/dist/test/test.js`)
+Example sync: (`./node_modules/pool-web-worker/test/test.js`)
 ```
  test SYNC:
 test('test sync', sync () => {

@@ -1,6 +1,6 @@
 import util from "util";
-import {EWorkerMode, IWorkerService} from "../worker";
 import {WorkerService} from "../worker-service";
+import {EWorkerMode, IWorkerService} from "../types/worker";
 
 
 

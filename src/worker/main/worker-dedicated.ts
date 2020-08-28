@@ -11,8 +11,8 @@ import {
     ILogger,
     IWorkerMessageResponse,
     IWorkerPoolController,
-    TAny
-} from "../../../worker";
+    TAny,
+} from "../../../types/worker";
 
 export class WorkerDedicated {
 

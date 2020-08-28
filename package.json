@@ -1,6 +1,6 @@
 {
   "name": "pool-web-worker",
-  "version": "1.0.15",
+  "version": "1.0.9",
   "description": "",
   "main": "./dist/src/worker-service",
   "scripts": {

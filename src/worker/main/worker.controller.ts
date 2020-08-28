@@ -1,13 +1,6 @@
 import {WorkerTask} from "./worker-task";
 import {WorkerDedicated} from "./worker-dedicated";
-import {
-    EWorkerError,
-    EWorkerMode,
-    ILogger,
-    IPoolOptions,
-    IWorkerPoolController,
-    TAny
-} from "../../../worker";
+import {EWorkerError, EWorkerMode, ILogger, IPoolOptions, IWorkerPoolController, TAny} from "../../../types/worker";
 import {WorkerService} from "../../../worker-service";
 
 export class WorkerController implements IWorkerPoolController {
@@ -109,8 +102,8 @@ export class WorkerController implements IWorkerPoolController {
         }
     }
 
-    public getAvailableWorkers(): [ number, number,  number,  number] {
-        let list: [number,  number,  number, number] = [0, 0, 0, 0];
+    public getAvailableWorkers(): [number, number, number, number] {
+        let list: [number, number, number, number] = [0, 0, 0, 0];
         for (const item of this.workers) {
             if (item.isWorkerStop) list[3]++;
             else if (item.isWorkerUp) list[1]++;

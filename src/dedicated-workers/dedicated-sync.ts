@@ -1,5 +1,5 @@
 import {AbstractDedicatedWorker} from "../worker/worker/abstract-dedicated-worker";
-import {IDedicatedWorker, IWorkerMessageRequest} from "../../worker";
+import {IDedicatedWorker, IWorkerMessageRequest} from "../../types/worker";
 
 export class DedicatedSync extends AbstractDedicatedWorker implements IDedicatedWorker {
 

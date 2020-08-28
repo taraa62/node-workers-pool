@@ -4,7 +4,7 @@ import {
     IWorkerMessageRequest,
     IWorkerMessageResponse,
     TAny
-} from "../../../worker";
+} from "../../../types/worker";
 
 
 export class WorkerMessageRequest implements IWorkerMessageRequest {
