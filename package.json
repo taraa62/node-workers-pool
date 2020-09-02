@@ -1,6 +1,6 @@
 {
   "name": "pool-web-worker",
-  "version": "1.0.9",
+  "version": "1.0.26",
   "description": "",
   "main": "./dist/src/worker-service",
   "scripts": {
@@ -23,7 +23,7 @@
   "dependencies": {},
   "devDependencies": {
     "ts-node": "^8.10.2",
-    "typescript": "^3.9.4",
+    "typescript": "~3.9.7",
     "jest": "^26.4.1",
     "@types/jest": "^26.0.10",
     "ts-jest": "^26.2.0",

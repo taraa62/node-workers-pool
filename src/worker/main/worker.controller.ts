@@ -1,12 +1,21 @@
 import {WorkerTask} from "./worker-task";
 import {WorkerDedicated} from "./worker-dedicated";
-import {EWorkerError, EWorkerMode, ILogger, IPoolOptions, IWorkerPoolController, TAny} from "../../../types/worker";
+import {
+    EWorkerError,
+    EWorkerMode,
+    ILogger,
+    IPoolOptions,
+    IWorkerPoolController,
+    TAny,
+    TWorkerOptions
+} from "../../../types/worker";
 import {WorkerService} from "../../../worker-service";
 
 export class WorkerController implements IWorkerPoolController {
 
     private workers: WorkerDedicated[] = [];
     private awaitQueueTasks: WorkerTask[] = [];
+    private isWorkerInitError = false;
 
     constructor(private service: WorkerService, private options: IPoolOptions, public logger: ILogger) {
         if (!this.options.minPoolWorkers || this.options.minPoolWorkers < 1)
@@ -30,6 +39,7 @@ export class WorkerController implements IWorkerPoolController {
     }
 
     public newTask<T>(data: TAny): Promise<T> {
+        if (this.isWorkerInitError) throw new Error('invalid worker-dedicated')
         const task: WorkerTask = new WorkerTask(data, this.options.timeRunTask, this.options.maxResetTask);
         this.awaitQueueTasks.push(task);
         this.checkQueueTasks();
@@ -38,7 +48,6 @@ export class WorkerController implements IWorkerPoolController {
 
     public checkQueueTasks(): void {
         const [numAvailable, numUp, numRun, numStop] = this.getAvailableWorkers();
-
 
         if (numStop === this.options.maxPoolWorkers) {
             try {
@@ -124,6 +133,11 @@ export class WorkerController implements IWorkerPoolController {
         this.checkQueueTasks();
     }
 
+    public errorCloseWorker(tasks: Map<string, WorkerTask>): void {
+        this.isWorkerInitError = true;
+        this.destroy(EWorkerError.WORKER_EXIT);
+    }
+
     public destroy(code: EWorkerError): void {
         this.workers.map(w => w.destroy(code));
         this.workers = [];
@@ -131,9 +145,11 @@ export class WorkerController implements IWorkerPoolController {
     }
 
     private upWorker(): void {
-        console.info('== up worker!')
-        if (this.workers.length < this.options.maxPoolWorkers!) {
-            this.workers.push(new WorkerDedicated(this, this.options.mode, this.options.pathJsFile, this.options.initData,));
+        if (!this.isWorkerInitError) {
+            console.info('== up worker!')
+            if (this.workers.length < this.options.maxPoolWorkers!) {
+                this.workers.push(new WorkerDedicated(this, this.options as TWorkerOptions));
+            }
         }
     }
 

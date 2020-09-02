@@ -28,7 +28,6 @@ export abstract class AbstractDedicatedWorker {
 
     public logger: DedicatedLogger = new DedicatedLogger();
 
-
     constructor() {
         if (!parentPort) throw new Error('parentPort is undefined!')
         parentPort.on("message", this.newMessage.bind(this));

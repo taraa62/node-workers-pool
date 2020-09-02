@@ -1,7 +1,6 @@
 import util from "util";
 import {WorkerService} from "../worker-service";
-import {EWorkerMode, IWorkerService} from "../types/worker";
-
+import {EWorkerMode, EWorkerType, IWorkerService} from "../types/worker";
 
 
 const pause = util.promisify(setTimeout);
@@ -12,6 +11,7 @@ describe('Worker tests', () => {
         service.addPool({
             name: 'pool',
             mode: EWorkerMode.SYNC,
+            type:EWorkerType.NODE,
             pathJsFile: './src/dedicated-workers/dedicated-sync.js',
             minPoolWorkers: 1,
             maxPoolWorkers: 2,
@@ -35,11 +35,12 @@ describe('Worker tests', () => {
         expect(d).toEqual([1, 2, 3, 4]);
     }, 30000)
 
-    test('test async', async () => {
+    test.skip('test async', async () => {
         const service: IWorkerService = new WorkerService()
         service.addPool({
             name: 'pool',
             mode: EWorkerMode.ASYNC,
+            type:EWorkerType.NODE,
             pathJsFile: './src/dedicated-workers/dedicated-sync.js',
             minPoolWorkers: 1,
             maxPoolWorkers: 10,

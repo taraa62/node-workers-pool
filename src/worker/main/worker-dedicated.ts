@@ -1,17 +1,19 @@
 import {Random} from "../../utils/Random";
 import {WorkerTask} from "./worker-task";
 import {WorkerMessageRequest} from "./worker-types";
-import {FileUtils} from "../../utils/FileUtils";
-import {Worker} from "worker_threads";
+
 import {
     EWorkerError,
     EWorkerMessageRequest,
     EWorkerMessageResponse,
     EWorkerMode,
+    EWorkerType,
     ILogger,
     IWorkerMessageResponse,
     IWorkerPoolController,
     TAny,
+    TAnyObject,
+    TWorkerOptions,
 } from "../../../types/worker";
 
 export class WorkerDedicated {
@@ -22,15 +24,23 @@ export class WorkerDedicated {
     private isStop = false;
     private isUp = false;
     private mapTasks: Map<string, WorkerTask> = new Map<string, WorkerTask>();
-    private worker: Worker;
+    private worker!: TAnyObject;
 
 
-    constructor(private controller: IWorkerPoolController, private mode: EWorkerMode, js: string, initData?: TAny) {
-        const exist = FileUtils.exist([js]);
-        if (exist.error) throw new Error(`file is not exist! by path: ${exist.message}`)
+    constructor(private controller: IWorkerPoolController, private options: TWorkerOptions) {
+        this.init();
+    }
+
+    private async init(): Promise<void> {
         this.isUp = true;
-        this.worker = new Worker(js, {workerData: {data: initData, type: EWorkerMessageRequest.INIT}});
+        const nodePath = 'worker_threads'
+        const Worker = ((this.options.type === EWorkerType.NODE) ? await require(nodePath) : window).Worker
+        this.worker = new Worker(this.options.pathJsFile, this.options.defOptions);
         this.addListenerWorker();
+        this.runTask(new WorkerTask({
+            data: this.options?.initData,
+            type: EWorkerMessageRequest.INIT
+        }))
     }
 
     public get isWorkerUp(): boolean {
@@ -54,13 +64,11 @@ export class WorkerDedicated {
     }
 
     public runTask(task: WorkerTask): boolean {
-        if (this.mode === EWorkerMode.SYNC && this.numTasks) return false;
+        if (this.options.mode === EWorkerMode.SYNC && this.numTasks) return false;
         this.mapTasks.set(task.key, task);
         task.run(this);
         this.worker.postMessage(new WorkerMessageRequest(task.key, EWorkerMessageRequest.RUN_TASK, task.data));
         this.isRun = true;
-        console.log('run-: ',)
-        console.table(task);
         return true;
     }
 
@@ -68,26 +76,19 @@ export class WorkerDedicated {
         this.closeTask(key, new Error('The task closes at the end of the timer.'))
     }
 
-    public destroy(code: EWorkerError, error?: Error): void {
-        this.isStop = true;
-        if (code === EWorkerError.WORKER_CLOSE) {
-            this.worker.postMessage(new WorkerMessageRequest('close', EWorkerMessageRequest.CLOSE_WORKER, {code: EWorkerMessageRequest.CLOSE_WORKER}));
-            this.mapTasks.forEach(v => v.setRunDataWorker(error || new Error('Worker is close')));
-        }
-        this.mapTasks.clear();
 
-    }
 
     private addListenerWorker(): void {
-        this.worker.on("error", (error: Error) => {
+        const listener = this.options.type ===EWorkerType.NODE? 'addListener':'addEventListener';
+        this.worker[listener]("error", (error: Error) => {
             this.workerError(error);
         });
-        this.worker.on("exit", () => {
+        this.worker[listener]("exit", () => {
             this.isOnline = false;
             if (this.isStop) return;
             this.destroy(EWorkerError.WORKER_EXIT);
         });
-        this.worker.on("online", () => {
+        this.worker[listener]("online", () => {
             if (this.isStop) return;
             this.isOnline = true;
             this.isUp = false;
@@ -97,7 +98,7 @@ export class WorkerDedicated {
                 this.destroy(EWorkerError.INTERNAL_HANDLER_ERROR, e);
             }
         });
-        this.worker.on("message", (mess: IWorkerMessageResponse) => {
+        this.worker[listener]("message", (mess: IWorkerMessageResponse) => {
             if (this.isStop) return;
             try {
                 if (mess.type === EWorkerMessageResponse.LOGGER) {
@@ -127,8 +128,26 @@ export class WorkerDedicated {
         this.isOnline = false;
         if (this.isStop) return;
         this.isStop = true;
-        this.controller.closeWorker(this, this.mapTasks);
-        this.destroy(EWorkerError.INTERNAl_WORKER_ERROR, error);
+        if(this.isUp){
+            this.controller.errorCloseWorker();
+            this.destroy(EWorkerError.WORKER_EXIT, error);
+        }
+        else{
+            this.controller.closeWorker(this, this.mapTasks);
+            this.destroy(EWorkerError.INTERNAl_WORKER_ERROR, error);
+        }
+
+    }
+    public destroy(code: EWorkerError, error?: Error): void {
+        this.isStop = true;
+        if (code === EWorkerError.WORKER_CLOSE) {
+            this.worker.postMessage(new WorkerMessageRequest('close', EWorkerMessageRequest.CLOSE_WORKER, {code: EWorkerMessageRequest.CLOSE_WORKER}));
+            this.mapTasks.forEach(v => v.setRunDataWorker(error || new Error('Worker is close')));
+        }else if(code === EWorkerError.WORKER_EXIT){
+            this.mapTasks.forEach(v => v.setRunDataWorker(error || new Error('Worker-dedicated is invalid')));
+        }
+        this.mapTasks.clear();
+
     }
 }
 
