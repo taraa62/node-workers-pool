@@ -24,13 +24,15 @@ export class WorkerService implements IService {
 
     public addPool(options: IPoolOptions): boolean {
         if (!this.poolControllers.has(options.name)) {
-            const handlers: Record<string, string> = {};
+            let handlers: Record<string, string> = {};
             if (options.handlers?.length) {
                 options.handlers.forEach(v => {
                     if (this.handlers[v]) {
                         handlers[v] = this.handlers[v];
                     } else this.logger?.warning(`Handler ${v} not found.`)
                 });
+            }else{
+               handlers = this.handlers; 
             }
 
             this.poolControllers.set(options.name, new PoolController(options, handlers, this.logger!))
