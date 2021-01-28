@@ -1,4 +1,11 @@
-import {ECommandType, EMessageSender, EResponseType, IMessageRequest, IMessageResponse} from "../types/controller";
+import {
+    ECommandType,
+    EMessageSender,
+    EResponseType,
+    IMessageRequest,
+    IMessageResponse,
+    TTaskKey
+} from "../types/controller";
 import {Random} from "./utils/Random";
 import {ITaskOptions} from "../types/common";
 
@@ -25,15 +32,15 @@ export class MessageResponse implements IMessageResponse {
 }
 
 export class Task {
-    public readonly key: string = Random.randomString(16); //key, for stop run current task;
+    public readonly key: TTaskKey = Random.randomString(16); //key, for stop run current task;
 
     public isRun: boolean = false;
     public isEnd: boolean = false;
     public isSendResponse?: boolean;
     public timerKey?: NodeJS.Timeout;
-    public resolve: (value?: unknown) => void;
-    public reject: (error?: unknown) => void;
-    public request: IMessageRequest;
+    public resolve?: (value?: unknown) => void;
+    public reject?: (error?: unknown) => void;
+    public request?: IMessageRequest;
     public numReset = 0;
 
 

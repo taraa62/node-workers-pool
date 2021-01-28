@@ -21,7 +21,7 @@ export class PoolController implements IPoolController {
     public getHandler<T>(handler: string): T {
         if (!this.proxyHandlers[handler]) {
             const _self: PoolController = this;
-            this.proxyHandlers[handler] = new Proxy<T>({} as T, {
+            this.proxyHandlers[handler] = new Proxy<{}>({} as T, {
                 get(target: T, p: PropertyKey, receiver: object): Promise<unknown> {
                     if (!target[p as keyof T]) {
                         const callMethod = new Proxy(() => {
@@ -43,7 +43,7 @@ export class PoolController implements IPoolController {
                     // return Reflect.get(receiver, p, {
                     //     [p]: callMethod
                     // });
-                    return (target as TAnyObject)[p as keyof T];
+                    return (target as TAnyObject)[p as keyof Promise<T>];
                 }
             });
         }

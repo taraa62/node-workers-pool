@@ -8,7 +8,7 @@ export class WorkerService implements IService {
 
     private logger: ILogger | undefined = undefined;
     private readonly options: IServiceOptions;
-    private readonly poolControllers: Map<string, any> = new Map<string, any>();
+    private readonly poolControllers: Map<string, PoolController> = new Map<string, PoolController>();
     private readonly handlers: Record<string, string> = {};
 
 
@@ -42,7 +42,7 @@ export class WorkerService implements IService {
 
     public getHandler<T>(pool: string, handler: string): T {
         if (this.poolControllers.has(pool) && this.handlers[handler]) {
-            return this.poolControllers.get(pool).getHandler<T>(handler)
+            return this.poolControllers.get(pool)!.getHandler<T>(handler);
         }
         throw new Error('Pool or handler not found');
     }

@@ -1,6 +1,9 @@
 import {ILogger, IPoolOptions, ITaskOptions, IWorkerOptions, TAny} from "./common";
 import {Task} from "../src/task";
 
+export type TTaskKey = string;
+export type TWorkerKey = string;
+
 export interface IPoolController {
 
     getPoolOptions(): IPoolOptions;

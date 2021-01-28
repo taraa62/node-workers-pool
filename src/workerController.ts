@@ -1,6 +1,7 @@
-import {EWorkerMode, ILogger} from "../types/common";
+import {EWorkerMode, ILogger, TAny} from "../types/common";
 import {Worker} from "worker_threads";
-import {IMessageResponse, IPoolController} from "../types/controller";
+import {IMessageResponse, IPoolController, TTaskKey} from "../types/controller";
+import {Task} from "./task";
 
 
 class WorkerStatus{
@@ -21,10 +22,12 @@ class WorkerStatus{
 
 export class WorkerController {
 
+    // @ts-ignore
     private mode:EWorkerMode = EWorkerMode.ASYNC;
     private status:WorkerStatus = new WorkerStatus();
     private worker:Worker;
     private logger:ILogger;
+    private tasksPool:Map<TTaskKey, Task> = new Map<TTaskKey, Task>();
 
     constructor(private pool:IPoolController) {
         this.logger = pool.getLogger();
@@ -50,10 +53,14 @@ export class WorkerController {
             }
         });
         this.worker.on("message", (mess:IMessageResponse)=>{
-            this.pool.receiveMessage(mess);
+            if(!this.status.isStop){
+                this.pool.receiveMessage(mess);
+            }
         })
+    }
 
-
+    public abortTask(key:string, data?:TAny):void{
+        if(this)
     }
 
     public destroy(code:number){

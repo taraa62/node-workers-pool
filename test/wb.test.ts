@@ -1,10 +1,11 @@
-import {WorkerService} from "../src/service";
+import {promisify} from 'util';
 import {IService} from "../types/service";
 import {EWorkerMode, ILogger} from "../types/common";
-import util from "util";
+import {WorkerService} from "../src/workerService";
+import {IaaWorker} from "../handlers/Iaa.worker";
 
 // @ts-ignore
-const pause = util.promisify(setTimeout);
+const pause = promisify(setTimeout);
 
 describe('test', () => {
 
@@ -13,7 +14,8 @@ describe('test', () => {
         const logger: ILogger = {
             error: console.error,
             info: console.info,
-            verbose: console.log
+            verbose: console.log,
+            warning: console.info
         }
 
         const service: IService = new WorkerService({
@@ -23,8 +25,13 @@ describe('test', () => {
         console.log(service.getAvailableHandlers());
 
         service.addPool({
-            name: 'pool', mode: EWorkerMode.SYNC, handlers:['aa.worker']
+            name: 'pool', mode: EWorkerMode.SYNC, handlers: ['aa.worker']
         });
+
+        const handler = service.getHandler<IaaWorker>('pool', 'aa.worker');
+        const hw = await handler.getHelloWorld('Helllllooooo');
+        console.info(hw);
+
     }, 5000)
 
 
