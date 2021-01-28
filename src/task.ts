@@ -12,7 +12,7 @@ import {ITaskOptions} from "../types/common";
 export class MessageRequest implements IMessageRequest {
 
     constructor(
-        public key: string,
+        public key: TTaskKey,
         public sender: EMessageSender,
         public command: ECommandType,
         public handler: string,
@@ -23,7 +23,7 @@ export class MessageRequest implements IMessageRequest {
 }
 
 export class MessageResponse implements IMessageResponse {
-    constructor(public key: string,
+    constructor(public key: TTaskKey,
                 public type: EResponseType,
                 public sender: EMessageSender,
                 public data: unknown
@@ -47,3 +47,9 @@ export class Task {
     constructor(options:ITaskOptions) {
     }
 }
+
+/*
+
+потрібно добвити чекер на наявність задач які були загублені в процесі.
+по виявленню такого потрібно щось робити?
+ */

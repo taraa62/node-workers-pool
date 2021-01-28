@@ -21,6 +21,8 @@ export interface IPoolController {
     nextTask(): void;
 
     receiveMessage(mess?: IMessageResponse, task?: Task): void;
+
+    abortTask(key: TTaskKey, data?: TAny): void;
 }
 
 export const enum EMessageSender {
@@ -34,7 +36,8 @@ export const enum EMessageSender {
 export const enum ECommandType {
     INIT = 0,
     RUN = 1,
-    CLOSE = 2,
+    ABORT = 2,
+    CLOSE = 3,
 }
 
 export const enum EResponseType {

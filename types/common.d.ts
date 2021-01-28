@@ -1,4 +1,5 @@
 import {WorkerOptions} from "worker_threads";
+import {ECommandType} from "./controller";
 
 export type TAnyObject = Record<string, any>
 export type TAny<T = unknown> = string | number | boolean | Date | TAnyObject | T;
@@ -37,7 +38,7 @@ export interface IPoolOptions {
 }
 
 export interface IWorkerOptions {
-    default?:WorkerOptions
+    default?: WorkerOptions
     isResetWorker?: boolean; // default:true, if the worker falls, controller will raise a new.
     // isUpWorker?(opt: IServiceOptions, controller: IWorkerPoolController): boolean;
 }
@@ -46,6 +47,9 @@ export interface ITaskOptions {
     timeRunTask?: number;
     maxResetTask?: number; // default = 0; -newer reset if the task throw an error.
 }
+
+export type IError = Error | string | number | ECommandType
+
 
 
 

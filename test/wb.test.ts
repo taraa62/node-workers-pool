@@ -4,7 +4,6 @@ import {EWorkerMode, ILogger} from "../types/common";
 import {WorkerService} from "../src/workerService";
 import {IaaWorker} from "../handlers/Iaa.worker";
 
-// @ts-ignore
 const pause = promisify(setTimeout);
 
 describe('test', () => {
@@ -29,8 +28,9 @@ describe('test', () => {
         });
 
         const handler = service.getHandler<IaaWorker>('pool', 'aa.worker');
-        const hw = await handler.getHelloWorld('Helllllooooo');
-        console.info(hw);
+        // const hw = await handler.getHelloWorld('Helllllooooo');
+        // console.info(hw);
+        console.info(handler);
 
     }, 5000)
 
