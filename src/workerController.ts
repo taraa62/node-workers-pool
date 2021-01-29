@@ -2,6 +2,7 @@ import {EWorkerMode, ILogger} from "../types/common";
 import {Worker} from "worker_threads";
 import {ECommandType, EMessageSender, IMessageResponse, IPoolController, TTaskKey} from "../types/controller";
 import {MessageRequest, Task} from "./task";
+import FileUtils from "./utils/FileUtils";
 
 
 class WorkerStatus {
@@ -34,7 +35,16 @@ export class WorkerController {
         this.logger = pool.getLogger();
 
         this.status.isUp = true;
-        this.worker = new Worker('./worker/worker.js', this.pool.getWorkerOptions().default);
+        const path = FileUtils.resolve([process.cwd(), 'src', 'worker', 'worker.js']);
+        const workerOpt = {
+            ...this.pool.getWorkerOptions().default,
+            workerData:{
+                mode:this.mode,
+                handlers:this.pool.getHandles(),
+            }
+        };
+
+        this.worker = new Worker(path, workerOpt);
         this.addListener();
     }
 

@@ -2,8 +2,8 @@
   "include": ["./**/*"],
   "exclude": ["node_modules", "**/*.test.ts"],
   "compilerOptions": {
-    "module": "ESNext",
-    "target": "ES2020",
+    "module": "CommonJS",
+    "target": "ES2018",
     "rootDir": "./",
 //    "outDir": "./dist",
     "sourceMap": false,

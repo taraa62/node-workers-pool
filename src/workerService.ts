@@ -1,5 +1,5 @@
 import {IService} from "../types/service";
-import {IWorker} from "../types/single-worker";
+import {IWorker} from "../types/worker";
 import {ILogger, IPoolOptions, IServiceOptions} from "../types/common";
 import FileUtils from "./utils/FileUtils";
 import {PoolController} from "./poolController";

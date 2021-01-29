@@ -1,3 +1,3 @@
 export interface IaaWorker {
-    getHelloWorld(param:string):string;
+    getHelloWorld(param:string):Promise<string>;
 }
