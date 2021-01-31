@@ -31,8 +31,8 @@ export class WorkerService implements IService {
                         handlers[v] = this.handlers[v];
                     } else this.logger?.warning(`Handler ${v} not found.`)
                 });
-            }else{
-               handlers = this.handlers; 
+            } else {
+                handlers = this.handlers;
             }
 
             this.poolControllers.set(options.name, new PoolController(options, handlers, this.logger!))
@@ -40,9 +40,16 @@ export class WorkerService implements IService {
         return false;
     };
 
-    public getHandler<T>(pool: string, handler: string): T {
+    public getHandlerObject<T extends {}>(pool: string, handler: string): T {
         if (this.poolControllers.has(pool) && this.handlers[handler]) {
-            return this.poolControllers.get(pool)!.getHandler<T>(handler);
+            return this.poolControllers.get(pool)!.getHandlerObject(handler);
+        }
+        throw new Error('Pool or handler not found');
+    }
+
+    public getHandlerFunc<T extends Function>(pool: string, handler: string): T {
+        if (this.poolControllers.has(pool) && this.handlers[handler]) {
+            return this.poolControllers.get(pool)!.getHandlerFunc(handler);
         }
         throw new Error('Pool or handler not found');
     }
@@ -57,7 +64,7 @@ export class WorkerService implements IService {
 
     private async scanWorkerFiles() {
         const files = await FileUtils.findFiles(this.options.pathToFolderWorkerFiles || process.cwd(), {
-            // extension: ['ts'],
+            extension: ['js'],
             excludeName: {
                 equals: {
                     node_modules: 2,

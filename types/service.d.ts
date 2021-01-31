@@ -1,4 +1,4 @@
-import {IWorker} from "./single-worker";
+import {IWorker} from "./worker";
 import {IPoolOptions} from "./common";
 
 export interface IService {
@@ -13,7 +13,9 @@ export interface IService {
      */
     addPool(opt: IPoolOptions): boolean;
 
-    getHandler<T>(pool: string, handler: string): T;
+    getHandlerObject<T extends {}>(pool:string, handler: string): T;
+
+    getHandlerFunc<T extends Function>(pool:string, handler: string): T;
 
     getSingleWorker(): IWorker;
 }

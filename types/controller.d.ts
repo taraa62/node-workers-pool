@@ -16,7 +16,9 @@ export interface IPoolController {
 
     getHandles(): Record<string, string>;
 
-    getHandler<T>(handler: string): T;
+    getHandlerObject<T extends {}>(handler: string): T;
+
+    getHandlerFunc<T extends Function>(handler: string): T;
 
     nextTask(): void;
 

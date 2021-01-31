@@ -19,7 +19,7 @@ export interface ILogger {
 }
 
 export interface IServiceOptions {
-    pathToFolderWorkerFiles?: string;  // */**/*.worker.js
+   // pathToFolderWorkerFiles?: string;  // */**/*.worker.js
     logger?: ILogger;        // set default logger for workers pool
 }
 

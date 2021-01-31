@@ -27,7 +27,7 @@ class WorkerOptions {
     }
 }
 
-class Logger implements ILogger {
+export class Logger implements ILogger {
     error(error: string | Error): void {
         const response = new MessageResponse('error', EResponseType.LOGGER, EMessageSender.WORKER, error);
         parentPort?.postMessage(response);
@@ -49,9 +49,9 @@ class Logger implements ILogger {
     }
 
 }
-// @ts-ignore
-const handleWrapper = {
-    logger:new Logger()
+
+const handleDefParams = {
+    logger: new Logger()
 }
 
 class AbstractWorker {
@@ -88,9 +88,9 @@ class AbstractWorker {
         }
     }
 
-    private run(req: IMessageRequest) {
-        if(this.opt.isActive){
-            if(this.opt.mode === EWorkerMode.SYNC && this.opt.isRun){
+    private async run(req: IMessageRequest) {
+        if (this.opt.isActive) {
+            if (this.opt.mode === EWorkerMode.SYNC && this.opt.isRun) {
                 return this.sendError(req, new Error('Sink worker is run'), EMessageSender.WORKER, EResponseType.WORKER_RUN);
             }
 
@@ -101,10 +101,25 @@ class AbstractWorker {
 
                         break;
                     case ECommandType.RUN:
-                        if(this.handlers[req.handler]){
+                        if (this.handlers[req.handler]) {
                             this.opt.runTask();
-                            console.log(this.handlers)
 
+                            const handler = this.handlers[req.handler];
+                            let func: Function;
+                            if (handler.constructor.name === 'Function') {
+                                func = handler;
+                            } else {
+                                func = handler[req.execute!];
+                            }
+                            if (func) {
+                                let res = func.apply(handleDefParams, req.params);
+                                if (res.constructor.name === 'Promise') {
+                                    res = await res;
+                                }
+                                this.sendSuccess(req, EMessageSender.HANDLER, res);
+                            } else {
+                                this.sendError(req, new Error('Function not found'), EMessageSender.WORKER);
+                            }
                             this.opt.endRunTask();
                         }else {
                             this.sendError(req, new Error('Handler not found'), EMessageSender.WORKER);
@@ -120,20 +135,26 @@ class AbstractWorker {
                 }
 
 
-            }catch (e) {
+            } catch (e) {
                 this.sendError(req, e, EMessageSender.WORKER, EResponseType.ERROR);
             }
 
-        }else {
+        } else {
             this.sendCriticalError(new Error('Worker is not active'));
         }
     }
 
     private sendToParent(mess: MessageResponse) {
+        console.log(mess);
         parentPort?.postMessage(mess);
     }
 
-    public sendError(req: IMessageRequest, error: Error, sender: EMessageSender, errorType?: EResponseType): void {
+    private sendSuccess(req: IMessageRequest, sender: EMessageSender, data: unknown) {
+        console.table(data);
+        this.sendToParent(new MessageResponse(req.key, EResponseType.SUCCESS, sender, data))
+    }
+
+    private sendError(req: IMessageRequest, error: Error, sender: EMessageSender, errorType?: EResponseType): void {
         const mess = `Error called method: ${req.execute} to: ${req.sender} with params: ${
             JSON.stringify(req.params)}, message: ${error?.message}`
         this.sendToParent(new MessageResponse(req.key, EResponseType.ERROR, sender, {

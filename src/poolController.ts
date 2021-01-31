@@ -25,7 +25,8 @@ export class PoolController implements IPoolController {
         this.upController();
     }
 
-    public getHandler<T>(handler: string): T {
+    public getHandlerObject<T extends {}>(handler: string): T {
+        if (!this.handlers[handler]) throw new Error(`In pool '${this.options.name}' does not register handler '${handler}'`)
         if (!this.proxyHandlers[handler]) {
             const _self: PoolController = this;
             this.proxyHandlers[handler] = new Proxy<{}>({} as T, {
@@ -51,6 +52,27 @@ export class PoolController implements IPoolController {
                     //     [p]: callMethod
                     // });
                     return (target as TAnyObject)[p as keyof Promise<T>];
+                },
+            });
+        }
+        return this.proxyHandlers[handler] as T
+    }
+
+    public getHandlerFunc<T extends Function>(handler: string): T {
+        if (!this.proxyHandlers[handler]) {
+            const _self: PoolController = this;
+            this.proxyHandlers[handler] = new Proxy(() => {
+            }, {
+                apply(target: () => void, thisArg: unknown, argArray?: unknown): unknown {
+                    return new Promise((res, rej) => {
+                        const task = new Task(_self.options.taskOpt!);
+                        task.request = new MessageRequest(task.key, EMessageSender.HANDLER, ECommandType.RUN, handler, '', argArray);
+                        task.resolve = res;
+                        task.reject = rej;
+
+                        _self.queueOfTasks.push(task);
+                        _self.nextTask();
+                    });
                 }
             });
         }
@@ -141,7 +163,7 @@ export class PoolController implements IPoolController {
                         this.logger.error('unknown message sender!');
                         break;
                 }
-                this.sendSuccessToResult(task, mess);
+                this.sendSuccessToResult(task, mess.data);
             } else {
                 error ? this.sendErrorToTask(task, error || new Error('undefined error')) : this.sendSuccessToResult(task)
             }

@@ -1,7 +1,10 @@
-@Handler
-export class AaWorker{
+class AaWorker {
 
-    getHelloWorld(param:string):string{
-        return param + 'World';
+    getHelloWorld(param: string): string {
+        return param + '  World';
     }
 }
+
+module.exports = new AaWorker();
+
+
