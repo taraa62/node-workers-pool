@@ -15,6 +15,7 @@ describe('test', () => {
     }
 
     const service: IService = new WorkerService({
+        workersFolder: './handlers',
         logger,
     });
     afterAll(()=>{
@@ -29,9 +30,17 @@ describe('test', () => {
             name: 'pool',
             mode: EWorkerMode.SYNC,
             handlers: ['aa.worker', 'bb.worker', 'cc.worker'],
-            taskOpt:{
+            minWorkers: 2,
+            maxWorkers: 3,
+            taskOpt: {
+                maxRunAttempts: 2,
+                timeout: 2000
+            },
+            workerOpt: {
+                isResetWorker: true,
+                maxTaskAsync: 50
+            },
 
-            }
         });
 
         const handlerBB = service.getHandlerObject<IBBWorker>('pool', 'bb.worker');

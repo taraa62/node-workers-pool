@@ -63,7 +63,8 @@ export class WorkerService implements IService {
     }
 
     private async scanWorkerFiles() {
-        const files = await FileUtils.findFiles(this.options.pathToFolderWorkerFiles || process.cwd(), {
+        const path = FileUtils.resolve([ process.cwd(), this.options.workersFolder || ''])
+        const files = await FileUtils.findFiles(path, {
             extension: ['js'],
             excludeName: {
                 equals: {

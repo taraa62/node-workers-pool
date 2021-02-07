@@ -4,25 +4,48 @@ import {
     EResponseType,
     IMessageResponse,
     IPoolController,
-    TTaskKey
+    TTaskKey,
+    TWorkerKey
 } from "../types/controller";
-import {IError, ILogger, IPoolOptions, ITaskOptions, IWorkerOptions, TAny, TAnyObject} from "../types/common";
-import {WorkerController} from "./workerController";
+import {
+    EWorkerMode,
+    IError,
+    ILogger,
+    IPoolOptions,
+    ITaskOptions,
+    IWorkerOptions,
+    TAny,
+    TAnyObject
+} from "../types/common";
+import {CommonWorkerStatus, WorkerController} from "./workerController";
 import {MessageRequest, Task} from "./task";
 
 
 export class PoolController implements IPoolController {
 
-    private workersPool: WorkerController[] = [];
+    private workersPool: Map<TWorkerKey, WorkerController> = new Map<TWorkerKey, WorkerController>();
     private queueOfTasks: Task[] = [];
-    private proxyHandlers: Record<string, TAny> = {}
+    private proxyHandlers: Record<string, TAny> = {};
+    private isClose = false; //it is not set
+
 
     constructor(private options: IPoolOptions, private handlers: Record<string, string>, private logger: ILogger) {
         if (!options.workerOpt) options.workerOpt = {
-            isResetWorker: true
+            isResetWorker: true,
         }
         if (!options.taskOpt) options.taskOpt = {};
-        this.upController();
+
+        if (!options.minWorkers || options.minWorkers < 1 || options.minWorkers > 5) {
+            options.minWorkers = 1;
+        }
+        if (!options.maxWorkers || options.maxWorkers < options.minWorkers || options.maxWorkers > 10) {
+            options.maxWorkers = options.minWorkers;
+        }
+        if (!options.workerOpt?.maxTaskAsync || options.workerOpt.maxTaskAsync < 2) {
+            options.mode = EWorkerMode.SYNC;
+        }
+
+        this.checkPool();
     }
 
     public getHandlerObject<T extends {}>(handler: string): T {
@@ -99,8 +122,38 @@ export class PoolController implements IPoolController {
         return this.handlers;
     }
 
-    private upController() {
-        this.workersPool.push(new WorkerController(this))
+    private checkPool(): CommonWorkerStatus {
+        const info = this.getWorkersInfo();
+
+        const isAddWorker = (): boolean => {
+            if (info.active < this.options.minWorkers!) return true;
+            else {
+                if ((info.active - 1) >= this.options.maxWorkers!) return false;
+                if (info.up > 0) return false;
+                if (this.options.isUpWorker) {
+                    return this.options.isUpWorker?.call(null, this.options, {
+                        info,
+                        awaitTasks: this.queueOfTasks.length
+                    });
+                } else {
+                    // якщо синхронний і задач які чекають на виконнання більше 5, то піднімаємо
+                    //якщо асинхронний і мінімальна кількість задач які обробляються на данний момент >=
+                    if (this.options.mode === EWorkerMode.SYNC) {
+                        return this.queueOfTasks.length > 5
+                    } else {
+                        return info.workerMinTasks >= this.options.workerOpt!.maxTaskAsync!;
+                    }
+                }
+            }
+        }
+
+
+        const isAdd = isAddWorker();
+        if (isAdd) {
+            const worker = new WorkerController(this)
+            this.workersPool.set(worker.key, worker);
+        }
+        return info;
     }
 
     private sendSuccessToResult(task: Task, data?: TAny): void {
@@ -175,9 +228,53 @@ export class PoolController implements IPoolController {
     }
 
     public nextTask(): void {
-        if (this.queueOfTasks.length) {
-            this.workersPool[0].runTask(this.queueOfTasks.shift()!);
+        if (this.queueOfTasks.length
+        ) {
+
         }
 
+    }
+
+    private getWorkersInfo(): CommonWorkerStatus {
+        const info: CommonWorkerStatus = new CommonWorkerStatus();
+
+        for (const [key, item] of this.workersPool) {
+            item.giveStatus(info);
+            if (info.tasks[key] > info.workerMinTasks) {
+                info.workerMinTasks = info.tasks[key];
+                info.workerKeyMinTasks = key;
+            }
+        }
+        return info;
+    }
+
+
+    public checkQueueTasks(): void {
+        const info = this.checkPool();
+
+        if (!this.isClose) {
+            if (this.queueOfTasks.length) {
+                let worker: WorkerController | undefined;
+                if (this.options.mode === EWorkerMode.ASYNC) {
+                    worker = this.workersPool.get(info.workerKeyMinTasks!);
+                } else {
+                    const workers: WorkerController[] = Object.values(this.workersPool);
+                    for (const item of workers) {
+                        if (item.isFree) {
+                            worker = item;
+                            continue
+                        }
+                    }
+                }
+                if (worker) {
+                    const task = this.queueOfTasks.shift();
+
+                    if (task) {
+                        worker.runTask(task);
+                        this.queueOfTasks.unshift(task);
+                    }
+                }
+            }
+        }
     }
 }

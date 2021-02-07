@@ -1,9 +1,28 @@
-import {EWorkerMode, ILogger} from "../types/common";
+import {EWorkerMode, ICommonWorkerStatus, ILogger} from "../types/common";
 import {Worker} from "worker_threads";
-import {ECommandType, EMessageSender, IMessageResponse, IPoolController, TTaskKey} from "../types/controller";
+import {
+    ECommandType,
+    EMessageSender,
+    EResponseType,
+    IMessageResponse,
+    IPoolController,
+    TTaskKey,
+    TWorkerKey
+} from "../types/controller";
 import {MessageRequest, Task} from "./task";
 import FileUtils from "./utils/FileUtils";
+import {Random} from "./utils/Random";
 
+export class CommonWorkerStatus implements ICommonWorkerStatus {
+    public active = 0;
+    public online = 0;
+    public up = 0;
+    public run = 0;
+    public stop = 0;
+    public tasks: Record<string, number> = {};
+    public workerKeyMinTasks?: TWorkerKey
+    public workerMinTasks: number = -1;
+}
 
 class WorkerStatus {
     public isUp = false;
@@ -20,11 +39,11 @@ class WorkerStatus {
         this.isOnline = true;
         this.isUp = false;
     }
+
 }
 
 export class WorkerController {
-
-    // @ts-ignore
+    public readonly key: TWorkerKey = Random.randomString(16); //key, for stop run current task;
     private mode: EWorkerMode = EWorkerMode.ASYNC;
     private status: WorkerStatus = new WorkerStatus();
     private worker: Worker;
@@ -38,14 +57,46 @@ export class WorkerController {
         const path = FileUtils.resolve([process.cwd(), 'src', 'worker', 'worker.js']);
         const workerOpt = {
             ...this.pool.getWorkerOptions().default,
-            workerData:{
-                mode:this.mode,
-                handlers:this.pool.getHandles(),
+            workerData: {
+                mode: this.mode,
+                handlers: this.pool.getHandles(),
             }
         };
 
         this.worker = new Worker(path, workerOpt);
         this.addListener();
+    }
+
+    public get isActive(): boolean {
+        return this.status.isOnline || this.status.isUp || this.status.isRun;
+    }
+
+    public get isUp(): boolean {
+        return this.status.isUp;
+    }
+
+    public get isStop(): boolean {
+        return this.status.isStop;
+    }
+
+    public get isRun(): boolean {
+        return this.status.isRun
+    }
+
+    public get isFree(): boolean {
+        if (this.mode === EWorkerMode.SYNC) {
+            return this.status.isOnline && !this.status.isRun;
+        }
+        return this.status.isOnline && !this.status.isRun && this.tasksPool.size < this.pool.getWorkerOptions().maxTaskAsync!;
+    }
+
+    public giveStatus(info: CommonWorkerStatus) {
+        if (this.status.isOnline) info.online++;
+        if (this.status.isUp) info.up++;
+        if (this.status.isRun) info.run++;
+        if (this.status.isStop) info.stop++;
+        if (this.isActive) info.active++;
+        info.tasks[this.key] = this.tasksPool.size;
     }
 
     public runTask(task: Task): void {
@@ -84,6 +135,9 @@ export class WorkerController {
         });
         this.worker.on("message", (mess: IMessageResponse) => {
             if (!this.status.isStop) {
+                if (mess.type === EResponseType.CRITICAL_ERROR) {
+                    this.destroy(mess.type);
+                }
                 this.pool.receiveMessage(mess, this.tasksPool.get(mess.key));
             }
         })
