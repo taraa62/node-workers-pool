@@ -37,7 +37,6 @@ describe('test', () => {
                 timeout: 2000
             },
             workerOpt: {
-                isResetWorker: true,
                 maxTaskAsync: 50
             },
 

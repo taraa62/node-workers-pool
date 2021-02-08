@@ -7,7 +7,7 @@ import {
     TTaskKey
 } from "../types/controller";
 import {Random} from "./utils/Random";
-import {ITaskOptions} from "../types/common";
+import {IError, ITaskOptions, TAny} from "../types/common";
 
 export class MessageRequest implements IMessageRequest {
 
@@ -36,15 +36,45 @@ export class Task {
 
     public isRun: boolean = false;
     public isEnd: boolean = false;
-    public isSendResponse?: boolean;
-    public timerKey?: NodeJS.Timeout;
+    public isSendResponse = false;
+    public timerKey?: number;
     public resolve?: (value?: unknown) => void;
     public reject?: (error?: unknown) => void;
     public request?: IMessageRequest;
     public numReset = 0;
 
 
-    constructor(options:ITaskOptions) {
+    constructor(private options: ITaskOptions) {
+
+
+    }
+
+    public set run(callback: (task: Task) => void) {
+        this.isRun = true;
+        this.timerKey = setTimeout(callback, this.options.timeout, this);
+    }
+
+    public reset(): boolean {
+        clearTimeout(this.timerKey!);
+        this.numReset++;
+        if (this.isSendResponse || this.numReset >= this.options.maxRunAttempts!) {
+            return false;
+        }
+
+        this.isRun = false;
+        this.isEnd = false;
+        this.isSendResponse = false;
+        this.reject = this.resolve = undefined;
+        return true;
+    }
+
+
+    public send(error: IError | null, data?: TAny): void {
+        if (!this.isSendResponse) {
+            this.isSendResponse = true;
+            clearTimeout(this.timerKey!);
+            error ? this.reject!(error) : this.resolve!(data);
+        }
     }
 }
 

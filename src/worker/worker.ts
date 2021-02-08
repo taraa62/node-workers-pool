@@ -1,27 +1,31 @@
 import {EWorkerMode, ILogger} from "../../types/common";
 import {parentPort, workerData} from "worker_threads";
 import {ECommandType, EMessageSender, EResponseType, IMessageRequest} from "../../types/controller";
-import {MessageResponse} from "../task";
-import {IWorkerData} from "../../types/worker";
+import {MessageRequest, MessageResponse} from "../task";
+import {IItemWorkerOptions, IWorkerData} from "../../types/worker";
 
 /*
 потрібно обробку для скидання задачі
  */
 class WorkerOptions {
-    public mode: EWorkerMode = EWorkerMode.ASYNC;
+    public mode: EWorkerMode = EWorkerMode.SYNC;
+    public options?: IItemWorkerOptions
     public isRun = false;
     public isActive = false;
     public isClose = false;
+
 
     public exit() {
         this.isActive = false;
         this.isClose = true;
     }
-    public runTask(){
+
+    public runTask() {
         this.isRun = true;
     }
-    public endRunTask(){
-        if(this.mode === EWorkerMode.SYNC){
+
+    public endRunTask() {
+        if (this.mode === EWorkerMode.SYNC) {
             this.isRun = false
         }
     }
@@ -58,6 +62,7 @@ class AbstractWorker {
 
     private opt = new WorkerOptions();
     private handlers: Record<string, any> = {};
+    private requests: Map<string, MessageRequest> = new Map<string, MessageRequest>();
 
 
     constructor() {
@@ -75,7 +80,8 @@ class AbstractWorker {
         if (!workerInitData) {
             this.sendCriticalError(new Error('workerData not found'));
         }
-        this.opt.mode = workerInitData.mode || EWorkerMode.ASYNC;
+        this.opt.mode = workerInitData.mode || EWorkerMode.SYNC;
+        this.opt.options = workerInitData.options;
 
         const entryHandlers = Object.entries(workerInitData.handlers);
         for (const [key, path] of entryHandlers) {
@@ -90,11 +96,13 @@ class AbstractWorker {
 
     private async run(req: IMessageRequest) {
         if (this.opt.isActive) {
-            if (this.opt.mode === EWorkerMode.SYNC && this.opt.isRun) {
-                return this.sendError(req, new Error('Sink worker is run'), EMessageSender.WORKER, EResponseType.WORKER_RUN);
+            if (this.opt.mode === EWorkerMode.SYNC) {
+                if (this.opt.isRun) return this.sendError(req, new Error('Sink worker is run'), EMessageSender.WORKER, EResponseType.WORKER_RUN);
+            } else {
+                if (this.requests.size > this.opt.options!.maxTaskAsync) {
+                    return this.sendError(req, new Error('Tasks overflow'), EMessageSender.WORKER, EResponseType.WORKER_RUN);
+                }
             }
-
-
             try {
                 switch (req.command) {
                     case ECommandType.INIT:
@@ -121,15 +129,16 @@ class AbstractWorker {
                                 this.sendError(req, new Error('Function not found'), EMessageSender.WORKER);
                             }
                             this.opt.endRunTask();
-                        }else {
+                        } else {
                             this.sendError(req, new Error('Handler not found'), EMessageSender.WORKER);
                         }
-                                               break;
+                        break;
                     case ECommandType.ABORT:
-
+                        // TODO what do you do?
+                        // this.sendSuccess(req, EMessageSender.HANDLER, res);
                         break;
                     case ECommandType.CLOSE:
-
+                        this.destroy(0);
                         break;
 
                 }
@@ -165,7 +174,7 @@ class AbstractWorker {
     }
 
     private sendCriticalError(error: Error): void {
-        this.opt.exit();
+        this.destroy(EResponseType.CRITICAL_ERROR);
         this.sendToParent(new MessageResponse('worker_critical_error', EResponseType.CRITICAL_ERROR, EMessageSender.WORKER, {
             code: EResponseType.CRITICAL_ERROR,
             message: error.message,
@@ -173,6 +182,10 @@ class AbstractWorker {
         }));
     }
 
+    private destroy(code: number = 0): void {
+        this.opt.exit();
+        process.exit(code)
+    }
 
 }
 

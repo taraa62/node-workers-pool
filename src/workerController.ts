@@ -30,7 +30,7 @@ class WorkerStatus {
     public isRun = false;
     public isStop = false;
 
-    public stop() {
+    public stop(): void {
         this.isStop = true;
         this.isOnline = this.isUp = this.isRun = false;
     }
@@ -54,12 +54,16 @@ export class WorkerController {
         this.logger = pool.getLogger();
 
         this.status.isUp = true;
-        const path = FileUtils.resolve([process.cwd(), 'src', 'worker', 'worker.js']);
+        const path = FileUtils.resolve([process.cwd(), 'src', 'worker', 'worker.js']); // TODO ??? it is ok?
         const workerOpt = {
             ...this.pool.getWorkerOptions().default,
             workerData: {
                 mode: this.mode,
                 handlers: this.pool.getHandles(),
+                options: {
+                    maxTaskAsync: this.pool.getWorkerOptions().maxTaskAsync,
+                    timeout: this.pool.getTaskOptions().timeout
+                }
             }
         };
 
@@ -99,33 +103,34 @@ export class WorkerController {
         info.tasks[this.key] = this.tasksPool.size;
     }
 
-    public runTask(task: Task): void {
-        this.tasksPool.set(task.key, task);
-        task.isRun = true;
-        this.worker.postMessage(task.request);
-    }
-
-    public abortTask(key: TTaskKey): Task | void {
-        if (this.tasksPool.has(key)) {
-            const task = this.tasksPool.get(key)!;
-            this.worker.postMessage(new MessageRequest(key, EMessageSender.CONTROLLER, ECommandType.ABORT, task.request?.handler!));
-            return task
+    public runTask(task: Task): boolean {
+        const isAdd = (this.mode === EWorkerMode.SYNC) ? !this.isRun : this.pool.getWorkerOptions().maxTaskAsync! < this.tasksPool.size
+        if (isAdd) {
+            task.run = this.taskTimeout.bind(this);
+            this.tasksPool.set(task.key, task);
+            this.worker.postMessage(task.request);
         }
-        return;
+        return isAdd;
     }
 
-    public destroy(code: number) {
+    public destroy(code: number = 0) {
+        this.logger.info(`[close worker with code: ${code}`);
         this.status.stop();
+        this.tasksPool.forEach(task => this.pool.resetTask(task));
+        this.worker.postMessage(new MessageRequest('close', EMessageSender.CONTROLLER, ECommandType.CLOSE, 'close'));
     }
 
     private addListener() {
         this.worker.on('error', err => {
-            this.logger.warning(err.message) // TODO потрібно надати юзеру спосіб обробляти помилки
-        })
+            this.logger.error(err);
+            if (this.pool.getWorkerOptions().isErrorCritical) {
+                if (this.pool.getWorkerOptions().isErrorCritical!(err)) {
+                    this.destroy(EResponseType.CRITICAL_ERROR);
+                }
+            }
+        });
         this.worker.on("exit", code => {
-            this.status.stop();
             this.destroy(code);
-
         });
         this.worker.on('online', () => {
             if (!this.status.isStop) {
@@ -135,11 +140,29 @@ export class WorkerController {
         });
         this.worker.on("message", (mess: IMessageResponse) => {
             if (!this.status.isStop) {
+                const task = this.tasksPool.get(mess.key);
+                if (!task) {
+                    debugger
+                }
                 if (mess.type === EResponseType.CRITICAL_ERROR) {
                     this.destroy(mess.type);
+                } else if (mess.sender === EMessageSender.HANDLER) {
+                    this.tasksPool.delete(mess.key)
+                    if (this.mode === EWorkerMode.SYNC
+                        || this.mode === EWorkerMode.ASYNC && this.tasksPool.size < 1) {
+                        this.status.isRun = false;
+                    }
                 }
-                this.pool.receiveMessage(mess, this.tasksPool.get(mess.key));
+                this.pool.receiveMessage(mess, task);
             }
         })
+    }
+
+    private taskTimeout(task: Task): void {
+        if (this.tasksPool.has(task.key)) {
+            this.worker.postMessage(new MessageRequest(task.key, EMessageSender.CONTROLLER, ECommandType.ABORT, task.request!.handler!));
+            this.tasksPool.delete(task.key);
+        }
+        this.pool.resetTask(task);
     }
 }

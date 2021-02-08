@@ -24,7 +24,7 @@ export interface IPoolController {
 
     receiveMessage(mess?: IMessageResponse, task?: Task): void;
 
-    abortTask(key: TTaskKey, data?: TAny): void;
+    resetTask(task: Task): void;
 }
 
 export const enum EMessageSender {
@@ -54,10 +54,10 @@ export const enum EResponseType {
 
 export interface IMessageRequest {
     readonly  key: string;
-    readonly sender: EMessageSender;
-    readonly command: ECommandType;
-    readonly handler: string;
-    readonly execute?: string;
+    readonly  sender: EMessageSender;
+    readonly  command: ECommandType;
+    readonly  handler: string;
+    readonly  execute?: string;
     readonly  params?: TAny;
 }
 

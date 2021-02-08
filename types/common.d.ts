@@ -37,12 +37,14 @@ export interface IPoolOptions {
         awaitTasks: number,
         info: ICommonWorkerStatus;
     }): boolean;
+
+
 }
 
 export interface IWorkerOptions {
     default?: WorkerOptions
-    isResetWorker?: boolean; // default:true, if the worker falls, controller will raise a new.
     maxTaskAsync?: number;
+    isErrorCritical?(error:Error):boolean;
 }
 
 export interface ITaskOptions {

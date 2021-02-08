@@ -4,7 +4,6 @@ import {
     EResponseType,
     IMessageResponse,
     IPoolController,
-    TTaskKey,
     TWorkerKey
 } from "../types/controller";
 import {
@@ -30,19 +29,28 @@ export class PoolController implements IPoolController {
 
 
     constructor(private options: IPoolOptions, private handlers: Record<string, string>, private logger: ILogger) {
-        if (!options.workerOpt) options.workerOpt = {
-            isResetWorker: true,
+        // workerOpt
+        if (!options.workerOpt) options.workerOpt = {}
+        if (!options.workerOpt.maxTaskAsync) {
+            options.workerOpt.maxTaskAsync = 20;
         }
+        if (options.workerOpt.maxTaskAsync < 2) {
+            options.mode = EWorkerMode.SYNC;
+        }
+        // taskOpt
         if (!options.taskOpt) options.taskOpt = {};
-
+        if (!options.taskOpt.maxRunAttempts || options.taskOpt.maxRunAttempts < 1) {
+            options.taskOpt.maxRunAttempts = 5;
+        }
+        if (!options.taskOpt.timeout || options.taskOpt.timeout < 1) {
+            options.taskOpt.timeout = 5000;
+        }
+        // worker pool
         if (!options.minWorkers || options.minWorkers < 1 || options.minWorkers > 5) {
             options.minWorkers = 1;
         }
         if (!options.maxWorkers || options.maxWorkers < options.minWorkers || options.maxWorkers > 10) {
             options.maxWorkers = options.minWorkers;
-        }
-        if (!options.workerOpt?.maxTaskAsync || options.workerOpt.maxTaskAsync < 2) {
-            options.mode = EWorkerMode.SYNC;
         }
 
         this.checkPool();
@@ -122,64 +130,6 @@ export class PoolController implements IPoolController {
         return this.handlers;
     }
 
-    private checkPool(): CommonWorkerStatus {
-        const info = this.getWorkersInfo();
-
-        const isAddWorker = (): boolean => {
-            if (info.active < this.options.minWorkers!) return true;
-            else {
-                if ((info.active - 1) >= this.options.maxWorkers!) return false;
-                if (info.up > 0) return false;
-                if (this.options.isUpWorker) {
-                    return this.options.isUpWorker?.call(null, this.options, {
-                        info,
-                        awaitTasks: this.queueOfTasks.length
-                    });
-                } else {
-                    // якщо синхронний і задач які чекають на виконнання більше 5, то піднімаємо
-                    //якщо асинхронний і мінімальна кількість задач які обробляються на данний момент >=
-                    if (this.options.mode === EWorkerMode.SYNC) {
-                        return this.queueOfTasks.length > 5
-                    } else {
-                        return info.workerMinTasks >= this.options.workerOpt!.maxTaskAsync!;
-                    }
-                }
-            }
-        }
-
-
-        const isAdd = isAddWorker();
-        if (isAdd) {
-            const worker = new WorkerController(this)
-            this.workersPool.set(worker.key, worker);
-        }
-        return info;
-    }
-
-    private sendSuccessToResult(task: Task, data?: TAny): void {
-        if (!task.isSendResponse) {
-            task.isSendResponse = true;
-            task.resolve!(data);
-        }
-    }
-
-    private sendErrorToTask(task: Task, error: IError) {
-        if (!task.isSendResponse) {
-            task.isSendResponse = true;
-            task.reject!(error);
-        }
-    }
-
-    public abortTask(key: TTaskKey, data?: TAny): void {
-        this.workersPool.forEach(v => {
-            const task = v.abortTask(key);
-            if (task) {
-                data = data ?? ECommandType.ABORT
-                this.sendErrorToTask(task, data as IError);
-            }
-        });
-    }
-
     public receiveMessage(mess?: IMessageResponse, task?: Task, error?: IError): void {
         if (!task) return;
         try {
@@ -191,6 +141,7 @@ export class PoolController implements IPoolController {
                         switch (mess.type) {
                             case EResponseType.CRITICAL_ERROR:
                                 console.log(mess);
+                                //якщо при ініціалізації виникла критична помилка,тоді ми повинні зрохнути пул
                                 break;
                             case EResponseType.ERROR:
                                 console.log(mess); //check user handler
@@ -216,23 +167,80 @@ export class PoolController implements IPoolController {
                         this.logger.error('unknown message sender!');
                         break;
                 }
-                this.sendSuccessToResult(task, mess.data);
+                task.send(null, mess.data);
             } else {
-                error ? this.sendErrorToTask(task, error || new Error('undefined error')) : this.sendSuccessToResult(task)
+                error ? task.send(error || new Error('undefined error')) : task.send(null, task);
             }
         } catch (e) {
             this.logger.error(e);
         } finally {
+            this.checkPool();
             this.nextTask();
         }
     }
 
     public nextTask(): void {
-        if (this.queueOfTasks.length
-        ) {
-
+        if (!this.isClose) {
+            if (this.queueOfTasks.length) {
+                const info = this.checkPool();
+                let worker: WorkerController | undefined;
+                if (this.options.mode === EWorkerMode.ASYNC) {
+                    worker = this.workersPool.get(info.workerKeyMinTasks!);
+                } else {
+                    const workers: WorkerController[] = Object.values(this.workersPool);
+                    for (const item of workers) {
+                        if (item.isFree) {
+                            worker = item;
+                            continue;
+                        }
+                    }
+                }
+                if (worker) {
+                    const task = this.queueOfTasks.shift();
+                    if (task && worker.runTask(task)) {
+                        this.queueOfTasks.unshift(task);
+                    }
+                }
+            }
         }
+    }
 
+    public resetTask(task: Task): void {
+        if (task.reset())
+            this.queueOfTasks.unshift(task);
+        else task.send({name: 'resetLimitOut', message: `Reset restriction exhausted`} as IError);
+    }
+
+    private checkPool(): CommonWorkerStatus {
+        const info = this.getWorkersInfo();
+
+        const isAddWorker = (): boolean => {
+            if (info.active < this.options.minWorkers!) return true;
+            else {
+                if ((info.active - 1) >= this.options.maxWorkers!) return false;
+                if (info.up > 0) return false;
+                if (this.options.isUpWorker) {
+                    return this.options.isUpWorker?.call(null, this.options, {
+                        info,
+                        awaitTasks: this.queueOfTasks.length
+                    });
+                } else {
+                    // якщо синхронний і задач які чекають на виконнання більше 5, то піднімаємо
+                    //якщо асинхронний і мінімальна кількість задач які обробляються на данний момент >=
+                    if (this.options.mode === EWorkerMode.SYNC) {
+                        return this.queueOfTasks.length > 5
+                    } else {
+                        return info.workerMinTasks >= this.options.workerOpt!.maxTaskAsync!;
+                    }
+                }
+            }
+        }
+        const isAdd = isAddWorker();
+        if (isAdd) {
+            const worker = new WorkerController(this)
+            this.workersPool.set(worker.key, worker);
+        }
+        return info;
     }
 
     private getWorkersInfo(): CommonWorkerStatus {
@@ -246,35 +254,5 @@ export class PoolController implements IPoolController {
             }
         }
         return info;
-    }
-
-
-    public checkQueueTasks(): void {
-        const info = this.checkPool();
-
-        if (!this.isClose) {
-            if (this.queueOfTasks.length) {
-                let worker: WorkerController | undefined;
-                if (this.options.mode === EWorkerMode.ASYNC) {
-                    worker = this.workersPool.get(info.workerKeyMinTasks!);
-                } else {
-                    const workers: WorkerController[] = Object.values(this.workersPool);
-                    for (const item of workers) {
-                        if (item.isFree) {
-                            worker = item;
-                            continue
-                        }
-                    }
-                }
-                if (worker) {
-                    const task = this.queueOfTasks.shift();
-
-                    if (task) {
-                        worker.runTask(task);
-                        this.queueOfTasks.unshift(task);
-                    }
-                }
-            }
-        }
     }
 }
