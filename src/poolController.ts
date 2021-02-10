@@ -1,11 +1,4 @@
-import {
-    ECommandType,
-    EMessageSender,
-    EResponseType,
-    IMessageResponse,
-    IPoolController,
-    TWorkerKey
-} from "../types/controller";
+import {IMessageResponse, IPoolController, TWorkerKey} from "../types/controller";
 import {
     EWorkerMode,
     IError,
@@ -18,8 +11,12 @@ import {
 } from "../types/common";
 import {CommonWorkerStatus, WorkerController} from "./workerController";
 import {MessageRequest, Task} from "./task";
+import {ECommandType, EMessageSender, EResponseType} from "./common";
 
-
+/*
+TODO
+якщо воркер є синхронний, тоді не має смислу піднімати кілька потоків, min=max=1
+ */
 export class PoolController implements IPoolController {
 
     private workersPool: Map<TWorkerKey, WorkerController> = new Map<TWorkerKey, WorkerController>();
@@ -37,13 +34,16 @@ export class PoolController implements IPoolController {
         if (options.workerOpt.maxTaskAsync < 2) {
             options.mode = EWorkerMode.SYNC;
         }
+        if (options.mode === EWorkerMode.SYNC) {
+            options.minWorkers = options.maxWorkers = 1;
+        }
         // taskOpt
         if (!options.taskOpt) options.taskOpt = {};
         if (!options.taskOpt.maxRunAttempts || options.taskOpt.maxRunAttempts < 1) {
             options.taskOpt.maxRunAttempts = 5;
         }
         if (!options.taskOpt.timeout || options.taskOpt.timeout < 1) {
-            options.taskOpt.timeout = 5000;
+            options.taskOpt.timeout = 30000;
         }
         // worker pool
         if (!options.minWorkers || options.minWorkers < 1 || options.minWorkers > 5) {
@@ -57,6 +57,7 @@ export class PoolController implements IPoolController {
     }
 
     public getHandlerObject<T extends {}>(handler: string): T {
+        if (this.isClose) throw new Error('Worker pool controller was closed.')
         if (!this.handlers[handler]) throw new Error(`In pool '${this.options.name}' does not register handler '${handler}'`)
         if (!this.proxyHandlers[handler]) {
             const _self: PoolController = this;
@@ -90,6 +91,7 @@ export class PoolController implements IPoolController {
     }
 
     public getHandlerFunc<T extends Function>(handler: string): T {
+        if (this.isClose) throw new Error('Worker pool controller was closed.')
         if (!this.proxyHandlers[handler]) {
             const _self: PoolController = this;
             this.proxyHandlers[handler] = new Proxy(() => {
@@ -130,47 +132,47 @@ export class PoolController implements IPoolController {
         return this.handlers;
     }
 
-    public receiveMessage(mess?: IMessageResponse, task?: Task, error?: IError): void {
-        if (!task) return;
+    public receiveMessage(mess: IMessageResponse, task?: Task, error?: IError): void {
+        if (!task && mess) {
+            task = this.queueOfTasks.find(v => v.key === mess.key)
+        }
         try {
-            if (mess) {
-                switch (mess.sender) {
-                    case EMessageSender.HANDLER:
-                        break;
-                    case EMessageSender.WORKER:
-                        switch (mess.type) {
-                            case EResponseType.CRITICAL_ERROR:
-                                console.log(mess);
-                                //якщо при ініціалізації виникла критична помилка,тоді ми повинні зрохнути пул
-                                break;
-                            case EResponseType.ERROR:
-                                console.log(mess); //check user handler
-                                break;
-                            case EResponseType.LOGGER:
-                                this.logger.error(JSON.stringify(mess.data)); // TODO add normal logger
-                                break;
-                            case EResponseType.SERVICE:
-                                console.log(mess);
-                                break;
-                            case EResponseType.SUCCESS: // just worker return void.
-                                break;
-                            case EResponseType.WORKER_RUN:
-                                console.error(mess);
-                                this.queueOfTasks.unshift(task);
-                                break;
-                            default:
-                                this.logger.error('unknown message type!');
-                                break;
-                        }
-                        break;
-                    default:
-                        this.logger.error('unknown message sender!');
-                        break;
-                }
-                task.send(null, mess.data);
-            } else {
-                error ? task.send(error || new Error('undefined error')) : task.send(null, task);
+            switch (mess.sender) {
+                case EMessageSender.HANDLER:
+                    if (task) task.send(null, mess.data);
+                    break;
+                case EMessageSender.WORKER:
+                    switch (mess.type) {
+                        case EResponseType.CRITICAL_ERROR:
+                            this.logger.error(mess.data as Error);
+                            //якщо при ініціалізації виникла критична помилка,тоді ми повинні зрохнути пул
+                            break;
+                        case EResponseType.ERROR:
+                            console.log(mess); //check user handler
+                            break;
+                        case EResponseType.LOGGER:
+                            this.logger[mess.key as keyof ILogger](mess.data as string | Error);
+                            break;
+                        case EResponseType.SERVICE:
+                            console.log(mess);
+                            debugger
+                            break;
+                        case EResponseType.SUCCESS: // just worker return void.
+                            debugger
+                            break;
+                        case EResponseType.WORKER_RUN:
+                            if (task) this.resetTask(task);
+                            break;
+                        default:
+                            this.logger.error('unknown message type!');
+                            break;
+                    }
+                    break;
+                default:
+                    this.logger.error('unknown message sender!');
+                    break;
             }
+
         } catch (e) {
             this.logger.error(e);
         } finally {
@@ -187,17 +189,18 @@ export class PoolController implements IPoolController {
                 if (this.options.mode === EWorkerMode.ASYNC) {
                     worker = this.workersPool.get(info.workerKeyMinTasks!);
                 } else {
-                    const workers: WorkerController[] = Object.values(this.workersPool);
+                    const workers: Iterable<WorkerController> = this.workersPool.values();
                     for (const item of workers) {
                         if (item.isFree) {
                             worker = item;
-                            continue;
+                            break;
                         }
                     }
                 }
                 if (worker) {
                     const task = this.queueOfTasks.shift();
-                    if (task && worker.runTask(task)) {
+                    if (task?.isSendResponse) return this.nextTask();
+                    if (task && !worker.runTask(task)) {
                         this.queueOfTasks.unshift(task);
                     }
                 }
@@ -206,18 +209,46 @@ export class PoolController implements IPoolController {
     }
 
     public resetTask(task: Task): void {
-        if (task.reset())
-            this.queueOfTasks.unshift(task);
-        else task.send({name: 'resetLimitOut', message: `Reset restriction exhausted`} as IError);
+        if (!this.isClose) {
+            if (task.reset())
+                this.queueOfTasks.unshift(task);
+            else task.send({name: 'resetLimitOut', message: `Reset restriction exhausted`} as IError);
+        } else {
+            task.send({name: 'close', message: `The worker was closed`} as IError);
+        }
+    }
+
+    public destroy(): void {
+        this.workersPool.forEach(c => c.destroy(EMessageSender.SERVICE));
+        this.queueOfTasks.forEach(v => this.resetTask(v));
+
+        this.workersPool.clear();
+        this.queueOfTasks = [];
+        this.proxyHandlers = {};
+    }
+
+    private getWorkersInfo(): CommonWorkerStatus {
+        const info: CommonWorkerStatus = new CommonWorkerStatus();
+
+        for (const [key, item] of this.workersPool) {
+            item.giveStatus(info);
+            if (info.tasks[key] > info.workerMinTasks) {
+                info.workerMinTasks = info.tasks[key];
+                info.workerKeyMinTasks = key;
+            }
+        }
+        return info;
     }
 
     private checkPool(): CommonWorkerStatus {
+        if (this.isClose) throw new Error('Worker pool controller was closed.')
         const info = this.getWorkersInfo();
 
         const isAddWorker = (): boolean => {
-            if (info.active < this.options.minWorkers!) return true;
+            if ((info.active) >= this.options.maxWorkers!) return false;
+            else if (info.active < this.options.minWorkers!) return true;
             else {
-                if ((info.active - 1) >= this.options.maxWorkers!) return false;
+
                 if (info.up > 0) return false;
                 if (this.options.isUpWorker) {
                     return this.options.isUpWorker?.call(null, this.options, {
@@ -243,16 +274,4 @@ export class PoolController implements IPoolController {
         return info;
     }
 
-    private getWorkersInfo(): CommonWorkerStatus {
-        const info: CommonWorkerStatus = new CommonWorkerStatus();
-
-        for (const [key, item] of this.workersPool) {
-            item.giveStatus(info);
-            if (info.tasks[key] > info.workerMinTasks) {
-                info.workerMinTasks = info.tasks[key];
-                info.workerKeyMinTasks = key;
-            }
-        }
-        return info;
-    }
 }

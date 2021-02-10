@@ -10,6 +10,7 @@ export class WorkerService implements IService {
     private readonly options: IServiceOptions;
     private readonly poolControllers: Map<string, PoolController> = new Map<string, PoolController>();
     private readonly handlers: Record<string, string> = {};
+    private isStop = false;
 
 
     constructor(options?: IServiceOptions) {
@@ -23,6 +24,7 @@ export class WorkerService implements IService {
 
 
     public addPool(options: IPoolOptions): boolean {
+        this.isRun();
         if (!this.poolControllers.has(options.name)) {
             let handlers: Record<string, string> = {};
             if (options.handlers?.length) {
@@ -36,11 +38,13 @@ export class WorkerService implements IService {
             }
 
             this.poolControllers.set(options.name, new PoolController(options, handlers, this.logger!))
+            return true;
         }
         return false;
     };
 
     public getHandlerObject<T extends {}>(pool: string, handler: string): T {
+        this.isRun();
         if (this.poolControllers.has(pool) && this.handlers[handler]) {
             return this.poolControllers.get(pool)!.getHandlerObject(handler);
         }
@@ -48,6 +52,7 @@ export class WorkerService implements IService {
     }
 
     public getHandlerFunc<T extends Function>(pool: string, handler: string): T {
+        this.isRun();
         if (this.poolControllers.has(pool) && this.handlers[handler]) {
             return this.poolControllers.get(pool)!.getHandlerFunc(handler);
         }
@@ -55,15 +60,35 @@ export class WorkerService implements IService {
     }
 
     public getSingleWorker(): IWorker {
+        this.isRun();
         return {};
     }
 
     public getAvailableHandlers(): Record<string, string> {
+        this.isRun();
         return this.handlers;
     }
 
+    public destroyPool(pool: string): void {
+        this.isRun();
+        if (this.poolControllers.has(pool)) {
+            this.poolControllers.get(pool)!.destroy();
+            this.poolControllers.delete(pool);
+        }
+    }
+
+    public destroyService(): void {
+        this.logger!.info(`Service is stopping.`);
+        this.isStop = true;
+        this.poolControllers.forEach((value => value.destroy()));
+    }
+
+    private isRun(): void {
+        if (this.isStop) throw new Error('Service stopped');
+    }
+
     private async scanWorkerFiles() {
-        const path = FileUtils.resolve([ process.cwd(), this.options.workersFolder || ''])
+        const path = FileUtils.resolve([process.cwd(), this.options.workersFolder || ''])
         const files = await FileUtils.findFiles(path, {
             extension: ['js'],
             excludeName: {

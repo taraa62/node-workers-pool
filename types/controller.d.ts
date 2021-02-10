@@ -1,5 +1,6 @@
 import {ILogger, IPoolOptions, ITaskOptions, IWorkerOptions, TAny} from "./common";
 import {Task} from "../src/task";
+import {ECommandType, EMessageSender, EResponseType} from "../src/common";
 
 export type TTaskKey = string;
 export type TWorkerKey = string;
@@ -25,33 +26,9 @@ export interface IPoolController {
     receiveMessage(mess?: IMessageResponse, task?: Task): void;
 
     resetTask(task: Task): void;
+
+    destroy():void;
 }
-
-export const enum EMessageSender {
-    SERVICE = 0,
-    POOL = 1,
-    CONTROLLER = 2,
-    WORKER = 3,
-    HANDLER = 4
-}
-
-export const enum ECommandType {
-    INIT = 0,
-    RUN = 1,
-    ABORT = 2,
-    CLOSE = 3,
-}
-
-export const enum EResponseType {
-    SUCCESS = 3,
-    ERROR = 4,
-    CRITICAL_ERROR = 5,
-    WORKER_RUN = 6,
-    LOGGER = 7,
-    SERVICE = 8
-}
-
-
 export interface IMessageRequest {
     readonly  key: string;
     readonly  sender: EMessageSender;

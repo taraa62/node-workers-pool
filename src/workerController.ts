@@ -1,9 +1,6 @@
 import {EWorkerMode, ICommonWorkerStatus, ILogger} from "../types/common";
 import {Worker} from "worker_threads";
 import {
-    ECommandType,
-    EMessageSender,
-    EResponseType,
     IMessageResponse,
     IPoolController,
     TTaskKey,
@@ -12,6 +9,7 @@ import {
 import {MessageRequest, Task} from "./task";
 import FileUtils from "./utils/FileUtils";
 import {Random} from "./utils/Random";
+import {ECommandType, EMessageSender, EResponseType} from "./common";
 
 export class CommonWorkerStatus implements ICommonWorkerStatus {
     public active = 0;
@@ -54,6 +52,8 @@ export class WorkerController {
         this.logger = pool.getLogger();
 
         this.status.isUp = true;
+        this.mode = this.pool.getPoolOptions().mode;
+
         const path = FileUtils.resolve([process.cwd(), 'src', 'worker', 'worker.js']); // TODO ??? it is ok?
         const workerOpt = {
             ...this.pool.getWorkerOptions().default,
@@ -62,7 +62,8 @@ export class WorkerController {
                 handlers: this.pool.getHandles(),
                 options: {
                     maxTaskAsync: this.pool.getWorkerOptions().maxTaskAsync,
-                    timeout: this.pool.getTaskOptions().timeout
+                    timeout: this.pool.getTaskOptions().timeout,
+                    controllerKey: this.key
                 }
             }
         };
@@ -104,7 +105,7 @@ export class WorkerController {
     }
 
     public runTask(task: Task): boolean {
-        const isAdd = (this.mode === EWorkerMode.SYNC) ? !this.isRun : this.pool.getWorkerOptions().maxTaskAsync! < this.tasksPool.size
+        const isAdd = (this.mode === EWorkerMode.SYNC) ? !this.isRun : this.pool.getWorkerOptions().maxTaskAsync! > this.tasksPool.size
         if (isAdd) {
             task.run = this.taskTimeout.bind(this);
             this.tasksPool.set(task.key, task);
@@ -114,7 +115,7 @@ export class WorkerController {
     }
 
     public destroy(code: number = 0) {
-        this.logger.info(`[close worker with code: ${code}`);
+        this.logger.info(`[close worker with code: ${code}]`);
         this.status.stop();
         this.tasksPool.forEach(task => this.pool.resetTask(task));
         this.worker.postMessage(new MessageRequest('close', EMessageSender.CONTROLLER, ECommandType.CLOSE, 'close'));
@@ -141,16 +142,15 @@ export class WorkerController {
         this.worker.on("message", (mess: IMessageResponse) => {
             if (!this.status.isStop) {
                 const task = this.tasksPool.get(mess.key);
-                if (!task) {
-                    debugger
-                }
-                if (mess.type === EResponseType.CRITICAL_ERROR) {
-                    this.destroy(mess.type);
-                } else if (mess.sender === EMessageSender.HANDLER) {
-                    this.tasksPool.delete(mess.key)
-                    if (this.mode === EWorkerMode.SYNC
-                        || this.mode === EWorkerMode.ASYNC && this.tasksPool.size < 1) {
-                        this.status.isRun = false;
+                if (task) {
+                    if (mess.type === EResponseType.CRITICAL_ERROR) {
+                        this.destroy(mess.type);
+                    } else if (mess.sender === EMessageSender.HANDLER) {
+                        this.tasksPool.delete(mess.key)
+                        if (this.mode === EWorkerMode.SYNC
+                            || this.mode === EWorkerMode.ASYNC && this.tasksPool.size < 1) {
+                            this.status.isRun = false;
+                        }
                     }
                 }
                 this.pool.receiveMessage(mess, task);

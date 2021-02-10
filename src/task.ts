@@ -1,13 +1,11 @@
 import {
-    ECommandType,
-    EMessageSender,
-    EResponseType,
     IMessageRequest,
     IMessageResponse,
     TTaskKey
 } from "../types/controller";
 import {Random} from "./utils/Random";
 import {IError, ITaskOptions, TAny} from "../types/common";
+import {ECommandType, EMessageSender, EResponseType} from "./common";
 
 export class MessageRequest implements IMessageRequest {
 
@@ -32,7 +30,7 @@ export class MessageResponse implements IMessageResponse {
 }
 
 export class Task {
-    public readonly key: TTaskKey = Random.randomString(16); //key, for stop run current task;
+    public key: TTaskKey = Random.randomString(16); //key, for stop run current task;
 
     public isRun: boolean = false;
     public isEnd: boolean = false;
@@ -44,10 +42,7 @@ export class Task {
     public numReset = 0;
 
 
-    constructor(private options: ITaskOptions) {
-
-
-    }
+    constructor(private options: ITaskOptions) { }
 
     public set run(callback: (task: Task) => void) {
         this.isRun = true;
@@ -60,11 +55,10 @@ export class Task {
         if (this.isSendResponse || this.numReset >= this.options.maxRunAttempts!) {
             return false;
         }
-
+        this.key = Random.randomString(16);
         this.isRun = false;
         this.isEnd = false;
         this.isSendResponse = false;
-        this.reject = this.resolve = undefined;
         return true;
     }
 

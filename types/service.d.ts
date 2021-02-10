@@ -18,4 +18,8 @@ export interface IService {
     getHandlerFunc<T extends Function>(pool:string, handler: string): T;
 
     getSingleWorker(): IWorker;
+
+    destroyPool(pool:string):void;
+
+    destroyService():void;
 }

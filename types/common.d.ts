@@ -1,5 +1,6 @@
 import {WorkerOptions} from "worker_threads";
-import {ECommandType, TWorkerKey} from "./controller";
+import {TWorkerKey} from "./controller";
+import {ECommandType} from "../src/common";
 
 export type TAnyObject = Record<string, any>
 export type TAny<T = unknown> = string | number | boolean | Date | TAnyObject | T;
@@ -10,12 +11,11 @@ export const enum EWorkerMode {
     ASYNC = 1
 }
 
-// TODO add new methods.
 export interface ILogger {
-    info: (message: string) => void;
+    info: (message: unknown) => void;
+    warning: (message: unknown) => void;
     error: (error: string | Error) => void;
-    verbose: (message: string) => void;
-    warning: (message: string) => void;
+    verbose: (mess: unknown) => void;
 }
 
 export interface IServiceOptions {
@@ -26,7 +26,7 @@ export interface IServiceOptions {
 export interface IPoolOptions {
     name: string;
     mode: EWorkerMode;
-    handlers?: string[]; // список імен воркерів які будуть оброблятись кожним воркером, якщо не описано, тоді всі які будуть знайдені
+    handlers?: string[]; // the names of the files to be used as a handler, without extension (handler.worker)
     minWorkers?: number; // it can be between 1-5
     maxWorkers?: number; // it can be between minWorkers-10
     workerOpt?: IWorkerOptions;
@@ -37,8 +37,6 @@ export interface IPoolOptions {
         awaitTasks: number,
         info: ICommonWorkerStatus;
     }): boolean;
-
-
 }
 
 export interface IWorkerOptions {

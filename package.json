@@ -1,8 +1,8 @@
 {
   "name": "pool-web-worker",
-  "version": "1.0.26",
+  "version": "2.0.0",
   "description": "",
-  "main": "./dist/src/worker-service",
+  "main": "./src/workerService",
   "scripts": {
     "test": "jest --forceExit --silent",
     "testTS": "ts-node ./test/testTypeScript4.ts"
@@ -21,7 +21,7 @@
   "author": "taraa62",
   "license": "ISC",
   "dependencies": {
-    "@types/node": "^14.6.0"
+
   },
   "devDependencies": {
     "@types/chai": "^4.2.12",
@@ -30,6 +30,7 @@
     "jest": "^26.4.1",
     "ts-jest": "^26.2.0",
     "ts-node": "^8.10.2",
-    "typescript": "^3.9.4"
+    "typescript": "^3.9.4",
+    "@types/node": "^14.6.0"
   }
 }

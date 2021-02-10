@@ -2,7 +2,7 @@ import {promisify} from 'util';
 import {IService} from "../types/service";
 import {EWorkerMode, ILogger} from "../types/common";
 import {WorkerService} from "../src/workerService";
-import {IBBWorker, ICC} from "../handlers/IHandler";
+import {IBBWorker} from "../handlers/IHandler";
 
 const pause = promisify(setTimeout);
 
@@ -19,22 +19,22 @@ describe('test', () => {
         logger,
     });
     afterAll(()=>{
-        // service
+        service.destroyService();
     })
 
     test('test1', async () => {
         await pause(500)
-        console.log(service.getAvailableHandlers());
+        // console.log(service.getAvailableHandlers());
 
         service.addPool({
             name: 'pool',
             mode: EWorkerMode.SYNC,
             handlers: ['aa.worker', 'bb.worker', 'cc.worker'],
-            minWorkers: 2,
-            maxWorkers: 3,
+            minWorkers: 1,
+            maxWorkers: 1,
             taskOpt: {
                 maxRunAttempts: 2,
-                timeout: 2000
+                timeout: 3000
             },
             workerOpt: {
                 maxTaskAsync: 50
@@ -42,50 +42,88 @@ describe('test', () => {
 
         });
 
-        const handlerBB = service.getHandlerObject<IBBWorker>('pool', 'bb.worker');
-        const bb = await handlerBB.bb();
-        console.info(bb);
+        /* const handlerBB = service.getHandlerObject<IBBWorker>('pool', 'bb.worker');
+         const bb = await handlerBB.bb();
+         console.info(bb);
 
-        const bbP = await handlerBB.bbP('taraa62', 11);
-        console.info(bbP);
+         const bbP = await handlerBB.bbP('taraa62', 11);
+         console.info(bbP);
 
-        const handlerCC = service.getHandlerFunc<ICC>('pool', 'cc.worker');
-        const bbRes = await handlerCC();
-        console.log(bbRes);
+
+            const handlerCC = service.getHandlerFunc<ICC>('pool', 'cc.worker');
+            const bbRes = await handlerCC();
+            console.log(bbRes);
+    */
 
 
         service.addPool({
             name: 'pool1', mode: EWorkerMode.SYNC, handlers: ['cc.worker']
         });
 
-        const ba = service.getHandlerObject<IBBWorker>('pool1', 'bb.worker');
+        service.destroyPool('pool1');
+
+        const ba = service.getHandlerObject<IBBWorker>('pool', 'bb.worker');
         const aa = await ba.bb();
         console.info(aa);
 
-    }, 5000)
+    }, 30000)
 
-    test.skip('proxy func',()=>{
-        function sum(a:number, b:number) {
-            return a + b;
+    test('SYNC - 1000 requests & order', async () => {
+        await pause(500)
+        service.addPool({
+            name: 'sync',
+            mode: EWorkerMode.SYNC,
+            handlers: ['bb.worker'],
+            taskOpt: {
+                maxRunAttempts: 1,
+                timeout: 5000
+            },
+        });
+        const bbWorker: IBBWorker = service.getHandlerObject('sync', 'bb.worker');
+        let sum = 0;
+
+        for (let i = 0; i < 1000; i++) {
+            sum = await bbWorker.sum(1, sum);
+        }
+        const order = []
+        for (let i = 0; i < 10; i++) {
+            order.push(await bbWorker.returnData(i));
         }
 
-        const handler = {
-            apply: function(target:any, thisArg:any, argumentsList:any) {
-                console.log(`Calculate sum: ${argumentsList}`);
-                // expected output: "Calculate sum: 1,2"
+        expect(sum).toBe(1000);
+        expect(order).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
-                return target(argumentsList[0], argumentsList[1]) * 10;
+    }, 20000)
+
+    test('ASYNC -  order', async () => {
+        await pause(500)
+        service.addPool({
+            name: 'sync',
+            mode: EWorkerMode.ASYNC,
+            handlers: ['bb.worker'],
+            minWorkers: 2,
+            maxWorkers: 3,
+            taskOpt: {
+                maxRunAttempts: 1,
+                timeout: 20000
+            },
+            workerOpt: {
+                maxTaskAsync: 50
             }
-        };
+        });
+        const bbWorker: IBBWorker = service.getHandlerObject('sync', 'bb.worker');
 
-        const proxy1 = new Proxy(sum, handler);
+        const order: number[] = [];
+        const promises = [];
+        for (let i = 0; i < 30; i++) {
+            promises.push(bbWorker.returnDataLong(i, Math.floor(Math.random() * 1000) + 1200).then(v => order.push(v)))
 
-        console.log(sum(1, 2));
-// expected output: 3
-        console.log(proxy1(1, 2));
-// expected output
+        }
+        await Promise.all(promises);
 
-    })
+        expect(order).toHaveProperty('length', 30);
+
+    }, 30000)
 })
 
 
