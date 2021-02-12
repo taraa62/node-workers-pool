@@ -24,6 +24,7 @@ export class MessageResponse implements IMessageResponse {
     constructor(public key: TTaskKey,
                 public type: EResponseType,
                 public sender: EMessageSender,
+                public command: ECommandType,
                 public data: unknown
     ) {
     }

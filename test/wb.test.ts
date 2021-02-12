@@ -1,20 +1,17 @@
-import {promisify} from 'util';
-import {IService} from "../types/service";
-import {EWorkerMode, ILogger} from "../types/common";
+import {EWorkerMode, EWorkerType, ILogger} from "../types/common";
 import {WorkerService} from "../src/workerService";
 import {IBBWorker} from "../handlers/IHandler";
 
-const pause = promisify(setTimeout);
 
 describe('test', () => {
     const logger: ILogger = {
         error: console.error,
         info: console.info,
         verbose: console.log,
-        warning: console.info
+        warn: console.info
     }
 
-    const service: IService = new WorkerService({
+    const service = new WorkerService({
         workersFolder: './handlers',
         logger,
     });
@@ -23,8 +20,9 @@ describe('test', () => {
     })
 
     test('test1', async () => {
-        await pause(500)
         // console.log(service.getAvailableHandlers());
+
+        await service.init();
 
         service.addPool({
             name: 'pool',
@@ -69,7 +67,7 @@ describe('test', () => {
     }, 30000)
 
     test('SYNC - 1000 requests & order', async () => {
-        await pause(500)
+        await service.init();
         service.addPool({
             name: 'sync',
             mode: EWorkerMode.SYNC,
@@ -96,7 +94,7 @@ describe('test', () => {
     }, 20000)
 
     test('ASYNC -  order', async () => {
-        await pause(500)
+        await service.init();
         service.addPool({
             name: 'sync',
             mode: EWorkerMode.ASYNC,
@@ -122,6 +120,36 @@ describe('test', () => {
         await Promise.all(promises);
 
         expect(order).toHaveProperty('length', 30);
+
+    }, 30000);
+    test('ASYNC -  fork', async () => {
+        await service.init();
+        service.addPool({
+            name: 'sync',
+            mode: EWorkerMode.ASYNC,
+            type:EWorkerType.FORK,
+            handlers: ['bb.worker'],
+            minWorkers: 1,
+            maxWorkers: 1,
+            taskOpt: {
+                maxRunAttempts: 1,
+                timeout: 20000
+            },
+            workerOpt: {
+                maxTaskAsync: 50
+            }
+        });
+        const bbWorker: IBBWorker = service.getHandlerObject('sync', 'bb.worker');
+
+        const order: number[] = [];
+        const promises = [];
+        for (let i = 0; i < 10; i++) {
+            promises.push(bbWorker.returnDataLong(i, Math.floor(Math.random() * 1000) + 200).then(v => order.push(v)))
+
+        }
+        await Promise.all(promises);
+
+        expect(order).toHaveProperty('length', 10);
 
     }, 30000)
 })

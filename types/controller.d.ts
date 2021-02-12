@@ -23,7 +23,7 @@ export interface IPoolController {
 
     nextTask(): void;
 
-    receiveMessage(mess?: IMessageResponse, task?: Task): void;
+    receiveMessage(workerKey:TWorkerKey, mess?: IMessageResponse, task?: Task): void;
 
     resetTask(task: Task): void;
 
@@ -42,5 +42,6 @@ export interface IMessageResponse {
     readonly key: string,
     readonly type: EResponseType;
     readonly sender: EMessageSender;
+    readonly command: ECommandType;
     readonly data: TAny;
 }

@@ -1,20 +1,18 @@
-import {EWorkerMode, ILogger} from "./common";
+import {EWorkerMode, EWorkerType, ILogger} from "./common";
 import {TWorkerKey} from "./controller";
 
-export interface IWorkerData {
-    mode: EWorkerMode;
-    handlers: Record<string, string>;
-    options: IItemWorkerOptions;
-}
-
 export interface IItemWorkerOptions {
+    mode: EWorkerMode;
+    type: EWorkerType;
+    handlers: Record<string, string>;
     maxTaskAsync: number,
     timeout: number,
     controllerKey: TWorkerKey
 }
-
 export interface IWorkerHandler {
-    logger: ILogger
+    logger: ILogger;
+    controllerKey: TWorkerKey,
+    workerKey: TWorkerKey
 }
 
 export interface IWorker {

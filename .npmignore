@@ -1,4 +1,10 @@
 **/*.ts
+**/*.js.map
 !**/*.d.ts
 .idea/
+
+verdaccio
+tsconfig.json
+jest.config.js
+
 

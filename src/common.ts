@@ -1,3 +1,13 @@
+import {ILogger} from "../types/common";
+
+export const DefWorkerLogger: ILogger = {
+    error: console.error,
+    info: console.info,
+    verbose: console.log,
+    warn: console.info
+}
+
+
 export enum EMessageSender {
     SERVICE = 0,
     POOL = 1,
@@ -7,19 +17,20 @@ export enum EMessageSender {
 }
 
 export enum ECommandType {
-    INIT = 0,
-    RUN = 1,
-    ABORT = 2,
-    CLOSE = 3,
-}
+    UP = 9,
+    INIT = 10,
+    RUN = 11,
+    ABORT_TASK = 12,  // for future
+    CLOSE_WORKER = 19,  // worker.terminate()
+ }
 
 export enum EResponseType {
-    SUCCESS = 3,
-    ERROR = 4,
-    CRITICAL_ERROR = 5,
-    WORKER_RUN = 6,
-    LOGGER = 7,
-    SERVICE = 8
+    SUCCESS = 100,
+    ERROR = 101,
+    CRITICAL_ERROR = 102,  // worker.exit(ECommandType.CRITICAL_ERROR)
+
+    LOGGER = 110,
+    SERVICE = 120
 }
 
 export const getSenderKey = (sender: EMessageSender) => EMessageSender[sender as unknown as keyof typeof EMessageSender];

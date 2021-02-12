@@ -1,11 +1,13 @@
 {
   "name": "pool-web-worker",
-  "version": "2.0.0",
+  "version": "2.0.10",
   "description": "",
-  "main": "./src/workerService",
+  "main": "./src/workerService.js",
+  "types": "./types/service.d.ts",
   "scripts": {
     "test": "jest --forceExit --silent",
-    "testTS": "ts-node ./test/testTypeScript4.ts"
+    "testTS": "ts-node ./test/testTypeScript4.ts",
+    "npm:publish": "npm publish --tag beta --access public"
   },
   "repository": {
     "type": "git",

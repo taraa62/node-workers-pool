@@ -1,6 +1,7 @@
 import {WorkerOptions} from "worker_threads";
 import {TWorkerKey} from "./controller";
 import {ECommandType} from "../src/common";
+import {ForkOptions} from "child_process";
 
 export type TAnyObject = Record<string, any>
 export type TAny<T = unknown> = string | number | boolean | Date | TAnyObject | T;
@@ -11,10 +12,17 @@ export const enum EWorkerMode {
     ASYNC = 1
 }
 
+export const enum EWorkerType {
+    THREADS = 0,
+    FORK = 1,
+    // CLUSTER = 2,
+    // SPAWN = 3
+}
+
 export interface ILogger {
     info: (message: unknown) => void;
-    warning: (message: unknown) => void;
-    error: (error: string | Error) => void;
+    warn: (message: unknown) => void;
+    error: (error: Error) => void;
     verbose: (mess: unknown) => void;
 }
 
@@ -26,6 +34,7 @@ export interface IServiceOptions {
 export interface IPoolOptions {
     name: string;
     mode: EWorkerMode;
+    type?: EWorkerType
     handlers?: string[]; // the names of the files to be used as a handler, without extension (handler.worker)
     minWorkers?: number; // it can be between 1-5
     maxWorkers?: number; // it can be between minWorkers-10
@@ -40,7 +49,7 @@ export interface IPoolOptions {
 }
 
 export interface IWorkerOptions {
-    default?: WorkerOptions
+    default?: WorkerOptions | ForkOptions
     maxTaskAsync?: number;
     isErrorCritical?(error:Error):boolean;
 }
@@ -61,7 +70,7 @@ export interface ICommonWorkerStatus {
     up: number;     // if worker is up
     run: number;    // if worker is do something
     stop: number;   // if worker stop or down
-    tasks: Record<string, number>;
+    tasks: Record<string, [number, boolean]>; // workerKey, [totalTasks, isOnlineWorker]
     workerKeyMinTasks?: TWorkerKey
     workerMinTasks: number;
 }

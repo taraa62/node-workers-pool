@@ -1,10 +1,26 @@
-import {IService} from "../types/service";
 import {IWorker} from "../types/worker";
 import {ILogger, IPoolOptions, IServiceOptions} from "../types/common";
 import FileUtils from "./utils/FileUtils";
 import {PoolController} from "./poolController";
+import {DefWorkerLogger} from "./common";
 
-export class WorkerService implements IService {
+
+/**
+ *
+ * добавити підписку на події
+ * - закриття повністю пула
+ * - подія на підняття воркера
+ * - подія на падіння воркера
+ * -
+ *
+ * потрібно добавити стріми!
+ *
+ *
+ * [close worker with code: null]
+
+ */
+
+export class WorkerService {
 
     private logger: ILogger | undefined = undefined;
     private readonly options: IServiceOptions;
@@ -15,9 +31,13 @@ export class WorkerService implements IService {
 
     constructor(options?: IServiceOptions) {
         this.options = options ?? {};
-        this.logger = options?.logger;
+        this.logger = options?.logger || DefWorkerLogger;
         this.logger?.verbose('Initialization service')
-        this.scanWorkerFiles().catch(er => {
+
+    }
+
+    public async init():Promise<void>{
+       await this.scanWorkerFiles().catch(er => {
             this.options.logger?.error(er);
         })
     }
@@ -31,13 +51,13 @@ export class WorkerService implements IService {
                 options.handlers.forEach(v => {
                     if (this.handlers[v]) {
                         handlers[v] = this.handlers[v];
-                    } else this.logger?.warning(`Handler ${v} not found.`)
+                    } else this.logger?.warn(`Handler ${v} not found.`)
                 });
             } else {
                 handlers = this.handlers;
             }
 
-            this.poolControllers.set(options.name, new PoolController(options, handlers, this.logger!))
+            this.poolControllers.set(options.name, new PoolController(this, options, handlers, this.logger!))
             return true;
         }
         return false;
@@ -78,6 +98,7 @@ export class WorkerService implements IService {
     }
 
     public destroyService(): void {
+        this.isRun();
         this.logger!.info(`Service is stopping.`);
         this.isStop = true;
         this.poolControllers.forEach((value => value.destroy()));

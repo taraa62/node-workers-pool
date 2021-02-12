@@ -1,8 +1,10 @@
 import {IWorker} from "./worker";
-import {IPoolOptions} from "./common";
+import {IPoolOptions, IServiceOptions} from "./common";
 
-export interface IService {
+export declare class WorkerService {
+    constructor(options?: IServiceOptions);
 
+    init():Promise<void>
 
     getAvailableHandlers():Record<string, string>;
 

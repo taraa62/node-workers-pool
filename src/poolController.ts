@@ -12,22 +12,30 @@ import {
 import {CommonWorkerStatus, WorkerController} from "./workerController";
 import {MessageRequest, Task} from "./task";
 import {ECommandType, EMessageSender, EResponseType} from "./common";
+import {WorkerService} from "../types/service";
 
 /*
 TODO
 якщо воркер є синхронний, тоді не має смислу піднімати кілька потоків, min=max=1
+
+
+потрібно зробити глобальну статистику по збору інфо
+перезагрузки воркерів
+найдовший/найкоротший час роботи воркера
+список методів які закінчились крешом
+
  */
 export class PoolController implements IPoolController {
 
     private workersPool: Map<TWorkerKey, WorkerController> = new Map<TWorkerKey, WorkerController>();
     private queueOfTasks: Task[] = [];
     private proxyHandlers: Record<string, TAny> = {};
-    private isClose = false; //it is not set
+    private isClose = false;
 
 
-    constructor(private options: IPoolOptions, private handlers: Record<string, string>, private logger: ILogger) {
+    constructor(private readonly service: WorkerService, private options: IPoolOptions, private handlers: Record<string, string>, private logger: ILogger) {
         // workerOpt
-        if (!options.workerOpt) options.workerOpt = {}
+        if (!options.workerOpt) options.workerOpt = {};
         if (!options.workerOpt.maxTaskAsync) {
             options.workerOpt.maxTaskAsync = 20;
         }
@@ -132,7 +140,7 @@ export class PoolController implements IPoolController {
         return this.handlers;
     }
 
-    public receiveMessage(mess: IMessageResponse, task?: Task, error?: IError): void {
+    public receiveMessage(workerKey: TWorkerKey, mess: IMessageResponse, task?: Task, error?: IError): void {
         if (!task && mess) {
             task = this.queueOfTasks.find(v => v.key === mess.key)
         }
@@ -140,44 +148,58 @@ export class PoolController implements IPoolController {
             switch (mess.sender) {
                 case EMessageSender.HANDLER:
                     if (task) task.send(null, mess.data);
+                    if (!this.isClose) {
+                        this.checkPool();
+                        this.nextTask();
+                    }
                     break;
                 case EMessageSender.WORKER:
                     switch (mess.type) {
                         case EResponseType.CRITICAL_ERROR:
                             this.logger.error(mess.data as Error);
-                            //якщо при ініціалізації виникла критична помилка,тоді ми повинні зрохнути пул
+                            const contr = this.workersPool.get(workerKey)!;
+                            if (mess.command === ECommandType.INIT || contr.isUp) {
+                                this.isClose = true;
+                                this.service.destroyPool(this.options.name);
+                            } else {
+                                this.destroyController(workerKey, EResponseType.CRITICAL_ERROR);
+                            }
                             break;
                         case EResponseType.ERROR:
-                            console.log(mess); //check user handler
+                            if (this.getWorkerOptions().isErrorCritical) {
+                                if (this.getWorkerOptions().isErrorCritical!(mess.data as Error)) {
+                                    this.destroyController(workerKey, EResponseType.CRITICAL_ERROR);
+                                }
+                            } else if (mess.command === ECommandType.RUN) {
+                                if (task) this.resetTask(task);
+                            }
                             break;
                         case EResponseType.LOGGER:
-                            this.logger[mess.key as keyof ILogger](mess.data as string | Error);
+                            this.logger[mess.key as keyof ILogger](mess.data as Error);
                             break;
                         case EResponseType.SERVICE:
                             console.log(mess);
                             debugger
                             break;
                         case EResponseType.SUCCESS: // just worker return void.
-                            debugger
-                            break;
-                        case EResponseType.WORKER_RUN:
-                            if (task) this.resetTask(task);
                             break;
                         default:
-                            this.logger.error('unknown message type!');
+                            this.logger.error(new Error('unknown message type!'));
                             break;
                     }
                     break;
                 default:
-                    this.logger.error('unknown message sender!');
+                    this.logger.error(new Error('unknown message sender!'));
                     break;
             }
 
         } catch (e) {
             this.logger.error(e);
         } finally {
-            this.checkPool();
-            this.nextTask();
+            if (task && !task.isSendResponse) {
+                throw new Error('Exit without answer!!!!')
+            }
+
         }
     }
 
@@ -219,12 +241,21 @@ export class PoolController implements IPoolController {
     }
 
     public destroy(): void {
-        this.workersPool.forEach(c => c.destroy(EMessageSender.SERVICE));
-        this.queueOfTasks.forEach(v => this.resetTask(v));
+        if (!this.isClose) {
+            this.isClose = true;
+            this.workersPool.forEach(c => c.destroy(EMessageSender.SERVICE));
+            this.queueOfTasks.forEach(v => this.resetTask(v));
 
-        this.workersPool.clear();
-        this.queueOfTasks = [];
-        this.proxyHandlers = {};
+            this.workersPool.clear();
+            this.queueOfTasks = [];
+            this.proxyHandlers = {};
+        }
+    }
+
+    public destroyController(key: TWorkerKey, code: EResponseType): void {
+        if (this.workersPool.has(key)) {
+            this.workersPool.get(key)!.destroy(code);
+        }
     }
 
     private getWorkersInfo(): CommonWorkerStatus {
@@ -232,8 +263,9 @@ export class PoolController implements IPoolController {
 
         for (const [key, item] of this.workersPool) {
             item.giveStatus(info);
-            if (info.tasks[key] > info.workerMinTasks) {
-                info.workerMinTasks = info.tasks[key];
+            const [numTasks, isOnline] = info.tasks[key];
+            if (isOnline && numTasks > info.workerMinTasks) {
+                info.workerMinTasks = numTasks;
                 info.workerKeyMinTasks = key;
             }
         }

@@ -35,23 +35,23 @@ class WorkerOptions {
 
 export class Logger implements ILogger {
 
-    error(error: string | Error): void {
-        const response = new MessageResponse('error', EResponseType.LOGGER, EMessageSender.WORKER, this.getMessage(error));
+    error(error: Error): void {
+        const response = new MessageResponse('error', EResponseType.LOGGER, EMessageSender.WORKER, ECommandType.RUN, this.getMessage(error));
         parentPort?.postMessage(response);
     }
 
     info(mess: unknown): void {
-        const response = new MessageResponse('info', EResponseType.LOGGER, EMessageSender.WORKER, this.getMessage(mess));
+        const response = new MessageResponse('info', EResponseType.LOGGER, EMessageSender.WORKER, ECommandType.RUN, this.getMessage(mess));
         parentPort?.postMessage(response);
     }
 
     verbose(mess: unknown): void {
-        const response = new MessageResponse('verbose', EResponseType.LOGGER, EMessageSender.WORKER, this.getMessage(mess));
+        const response = new MessageResponse('verbose', EResponseType.LOGGER, EMessageSender.WORKER, ECommandType.RUN, this.getMessage(mess));
         parentPort?.postMessage(response);
     }
 
-    warning(mess: unknown): void {
-        const response = new MessageResponse('warning', EResponseType.LOGGER, EMessageSender.WORKER, this.getMessage(mess));
+    warn(mess: unknown): void {
+        const response = new MessageResponse('warning', EResponseType.LOGGER, EMessageSender.WORKER, ECommandType.RUN, this.getMessage(mess));
         parentPort?.postMessage(response);
     }
 
@@ -85,14 +85,14 @@ class AbstractWorker {
         parentPort.on("message", this.run.bind(this));
 
         const errorEvents = ['rejectionHandled', 'uncaughtException', 'uncaughtExceptionMonitor', 'unhandledRejection'];
-        errorEvents.forEach(v => process.addListener(v as any, (er?: Error) => this.sendCriticalError(er || new Error('unhandled rejection'))))
-        this.init().catch(er => this.sendCriticalError(er));
+        errorEvents.forEach(v => process.addListener(v as any, (er?: Error) => this.sendCriticalError(er || new Error('unhandled rejection'), {command:ECommandType.RUN} as MessageRequest)))
+        this.init().catch(er => this.sendCriticalError(er, {command:ECommandType.INIT} as MessageRequest));
     }
 
     private async init() {
         const workerInitData: IWorkerData = workerData;
         if (!workerInitData) {
-            this.sendCriticalError(new Error('workerData not found'));
+            this.sendCriticalError(new Error('workerData not found'), {command:ECommandType.INIT} as MessageRequest);
         }
         this.opt.mode = workerInitData.mode || EWorkerMode.SYNC;
         this.opt.options = workerInitData.options;
@@ -104,7 +104,7 @@ class AbstractWorker {
             }
         }
         if (!Object.keys(this.handlers).length) {
-            this.sendCriticalError(new Error('The list of handlers is empty'))
+            this.sendCriticalError(new Error('The list of handlers is empty'), {command:ECommandType.INIT} as MessageRequest)
         }
 
         handlerDefParams.controllerKey = this.opt.options.controllerKey;
@@ -121,10 +121,10 @@ class AbstractWorker {
         })
         if (this.opt.isActive) {
             if (this.opt.mode === EWorkerMode.SYNC) {
-                if (this.opt.isRun) return this.sendError(req, new Error('Sink worker is run'), EMessageSender.WORKER, EResponseType.WORKER_RUN);
+                if (this.opt.isRun) return this.sendError(req, new Error('Sink worker is run'), EMessageSender.WORKER, EResponseType.ERROR);
             } else {
                 if (this.requests.size > this.opt.options!.maxTaskAsync) {
-                    return this.sendError(req, new Error('Tasks overflow'), EMessageSender.WORKER, EResponseType.WORKER_RUN);
+                    return this.sendError(req, new Error('Tasks overflow'), EMessageSender.WORKER, EResponseType.ERROR);
                 }
             }
             try {
@@ -163,12 +163,12 @@ class AbstractWorker {
                             this.sendError(req, new Error('Handler not found'), EMessageSender.WORKER);
                         }
                         break;
-                    case ECommandType.ABORT:
+                    case ECommandType.ABORT_TASK:
                         // TODO what do you do?
                         // this.sendSuccess(req, EMessageSender.HANDLER, res);
                         break;
-                    case ECommandType.CLOSE:
-                        this.destroy(0);
+                    case ECommandType.CLOSE_WORKER:
+                        this.destroy(ECommandType.CLOSE_WORKER);
                         break;
 
                 }
@@ -179,7 +179,7 @@ class AbstractWorker {
             }
 
         } else {
-            this.sendCriticalError(new Error('Worker is not active'));
+            this.sendCriticalError(new Error('Worker is not active'), req);
         }
     }
 
@@ -194,26 +194,26 @@ class AbstractWorker {
     }
 
     private sendSuccess(req: IMessageRequest, sender: EMessageSender, data: unknown) {
-        this.sendToParent(new MessageResponse(req.key, EResponseType.SUCCESS, sender, data))
+        this.sendToParent(new MessageResponse(req.key, EResponseType.SUCCESS, sender,req.command, data))
     }
 
     private sendError(req: IMessageRequest, error: Error, sender: EMessageSender, errorType?: EResponseType): void {
-        const mess = `Error called method: ${req.execute} to: ${req.sender} with params: ${
+        const mess = `Error called method: '${req.execute}' to: '${getSenderKey(req.sender)}' with params: ${
             JSON.stringify(req.params)}, message: ${error?.message}`
-        this.sendToParent(new MessageResponse(req.key, EResponseType.ERROR, sender, {
+        this.sendToParent(new MessageResponse(req.key, EResponseType.ERROR, sender, req.command, {
             code: errorType || EResponseType.ERROR,
             message: mess,
             stack: error.stack
         }));
     }
 
-    private sendCriticalError(error: Error): void {
-        this.destroy(EResponseType.CRITICAL_ERROR);
-        this.sendToParent(new MessageResponse('worker_critical_error', EResponseType.CRITICAL_ERROR, EMessageSender.WORKER, {
+    private sendCriticalError(error: Error, req: IMessageRequest): void {
+        this.sendToParent(new MessageResponse('worker_critical_error', EResponseType.CRITICAL_ERROR, EMessageSender.WORKER, req.command,{
             code: EResponseType.CRITICAL_ERROR,
             message: error.message,
             stack: error.stack
         }));
+        this.destroy(EResponseType.CRITICAL_ERROR);
     }
 
     private destroy(code: number = 0): void {
