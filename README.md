@@ -1,4 +1,4 @@
-# pool-web-worker
+# pool-web-worker - `deprecated`
 Add a wed-worker pool to your project
 (Now only for nodejs)
 
