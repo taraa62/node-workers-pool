@@ -1,4 +1,4 @@
-# pool-web-worker
+# node-workers-pool
 Add a wed-worker pool to your project
 
 ------
