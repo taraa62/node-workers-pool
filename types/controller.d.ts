@@ -35,7 +35,13 @@ export interface IMessageRequest {
     readonly  command: ECommandType;
     readonly  handler: string;
     readonly  execute?: string;
-    readonly  params?: TAny;
+    readonly  params?: TAny | Array<TAny | IStreamParam>;
+
+    isStream?: boolean;
+    isChunk?:boolean;
+    isStreamError?: boolean;
+    streamKey?: TTaskKey;
+
 }
 
 export interface IMessageResponse {
@@ -44,4 +50,8 @@ export interface IMessageResponse {
     readonly sender: EMessageSender;
     readonly command: ECommandType;
     readonly data: TAny;
+}
+
+export interface IStreamParam {
+    stream: boolean;
 }

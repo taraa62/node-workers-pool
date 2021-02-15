@@ -33,9 +33,9 @@ export interface IServiceOptions {
 
 export interface IPoolOptions {
     name: string;
-    mode: EWorkerMode;
+    handlers: string[]; // the names of the files to be used as a handler, without extension (handler.worker)
+    mode?: EWorkerMode;
     type?: EWorkerType
-    handlers?: string[]; // the names of the files to be used as a handler, without extension (handler.worker)
     minWorkers?: number; // it can be between 1-5
     maxWorkers?: number; // it can be between minWorkers-10
     workerOpt?: IWorkerOptions;

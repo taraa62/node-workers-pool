@@ -4,6 +4,7 @@ import {MessageRequest, MessageResponse} from "../task";
 import {IItemWorkerOptions, IWorkerHandler} from "../../types/worker";
 import {Random} from "../utils/Random";
 import {DefWorkerLogger, ECommandType, EMessageSender, EResponseType, getSenderKey} from "../common";
+import {Readable} from "stream";
 
 /*
 потрібно обробку для скидання задачі
@@ -34,6 +35,8 @@ export abstract class AbstractWorker {
 
     protected handlers: Record<string, any> = {};
     protected requests: Map<string, MessageRequest> = new Map<string, MessageRequest>();
+
+    protected mapStreams: Map<TTaskKey, Readable> = new Map<TTaskKey, Readable>();
 
 
     constructor() {
@@ -103,6 +106,16 @@ export abstract class AbstractWorker {
                         if (this.handlers[req.handler]) {
                             this.runTask();
                             try {
+                                if(req.isStream){
+                                    const stream = this.mapStreams.get(req.streamKey!);
+                                    if (stream) {
+                                        stream.push(req.params);
+                                        return this.sendSuccess(req, EMessageSender.HANDLER, true);
+                                    }
+                                }
+
+
+
                                 const handler = this.handlers[req.handler];
                                 let func: Function;
                                 if (handler.constructor.name === 'Function') {
@@ -111,8 +124,27 @@ export abstract class AbstractWorker {
                                     func = handler[req.execute!];
                                 }
                                 if (func) {
+                                    if (req.isStream && Array.isArray(req.params)) {
+                                        if (!req.isChunk) {
+                                            req.params.forEach((v, i, arr) => {
+                                                if (v && typeof v === "object" && v.stream) {
+                                                    switch (v.stream) {
+                                                        case "ReadStream": {
+                                                            const stream = arr[i] = new Readable({
+                                                                objectMode: true,
+                                                                read(size: number) {
+                                                                }
+                                                            });
+
+                                                            this.mapStreams.set(req.key, stream);
+                                                        }
+                                                    }
+                                                }
+                                            })
+                                        }
+                                    }
                                     let res = func.apply(handlerDefParams, req.params);
-                                    if (res.constructor.name === 'Promise') {
+                                    if (res && typeof res === "object" && res.constructor.name === 'Promise') {
                                         res = await res;
                                     }
                                     this.sendSuccess(req, EMessageSender.HANDLER, res);

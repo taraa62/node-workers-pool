@@ -1,3 +1,6 @@
+import {Stream} from "stream";
+import fs from "fs";
+
 export interface IAAWorker {
     getHelloWorld(param: string): Promise<string>;
 }
@@ -11,7 +14,13 @@ export interface IBBWorker {
 
     returnData(val: number): Promise<number>;
 
-    returnDataLong(val: number, time:number): Promise<number>;
+    returnDataLong(val: number, time: number): Promise<number>;
 }
 
 export type ICC = () => Promise<string>;
+
+export interface IStreamWorker {
+    write(file: string, stream: Stream): Promise<void>;
+
+    read(file: string): Promise<fs.ReadStream>;
+}

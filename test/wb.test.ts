@@ -1,6 +1,7 @@
 import {EWorkerMode, EWorkerType, ILogger} from "../types/common";
 import {WorkerService} from "../src/workerService";
-import {IBBWorker} from "../handlers/IHandler";
+import {IBBWorker, IStreamWorker} from "../handlers/IHandler";
+import * as fs from "fs";
 
 
 describe('test', () => {
@@ -16,7 +17,7 @@ describe('test', () => {
         logger,
     });
     afterAll(()=>{
-        service.destroyService();
+        // service.destroyService();
     })
 
     test('test1', async () => {
@@ -152,7 +153,39 @@ describe('test', () => {
         expect(order).toHaveProperty('length', 10);
 
     }, 30000)
+
+    test('SYNC-stream read', async () => {
+        await service.init();
+        service.addPool({
+            name: 'stream',
+            mode: EWorkerMode.SYNC,
+            type: EWorkerType.THREADS,
+            handlers: ['stream.worker'],
+            minWorkers: 1,
+            maxWorkers: 1,
+            taskOpt: {
+                maxRunAttempts: 1,
+                timeout: 20000
+            },
+            workerOpt: {
+                maxTaskAsync: 1
+            }
+        });
+
+        const file = '/home/taraa62/Загрузки/Vox Pops Video.mp4';
+        const tmp = '/home/taraa62/Documents/svn/web-worker/tmp/Vox Pops Video.mp4';
+        const read = fs.createReadStream(file);
+
+        const streamWorker: IStreamWorker = service.getHandlerObject('stream', 'stream.worker');
+        const error = await streamWorker.write(tmp, read);
+
+        console.error(error)
+    }, 30000);
 })
 
 
 // const handler: IaaHandlers = service.getHandler<IaaHandlers>('pool1')
+
+
+
+

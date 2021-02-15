@@ -56,7 +56,7 @@ export class WorkerController {
     constructor(private pool: IPoolController) {
         this.status.isUp = true;
         this.logger = pool.getLogger();
-        this.mode = this.pool.getPoolOptions().mode;
+        this.mode = this.pool.getPoolOptions().mode || EWorkerMode.ASYNC;
         this.type = this.pool.getPoolOptions().type || EWorkerType.THREADS;
 
         const path = FileUtils.resolve([__dirname, 'workers', this.type === EWorkerType.FORK ? 'fork.js' : 'worker-thread.js']);
@@ -105,6 +105,7 @@ export class WorkerController {
     public runTask(task: Task): boolean {
         const isAdd = (this.mode === EWorkerMode.SYNC) ? !this.isRun : this.pool.getWorkerOptions().maxTaskAsync! > this.tasksPool.size
         if (isAdd) {
+            task.workerKey = this.key;
             task.run = this.taskTimeout.bind(this);
             this.tasksPool.set(task.key, task);
             (this.worker as any)[this.sendMethod](task.request);  // TODO fix any type

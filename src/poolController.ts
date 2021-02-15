@@ -13,6 +13,7 @@ import {CommonWorkerStatus, WorkerController} from "./workerController";
 import {MessageRequest, Task} from "./task";
 import {ECommandType, EMessageSender, EResponseType} from "./common";
 import {WorkerService} from "../types/service";
+import {Readable} from "stream";
 
 /*
 TODO
@@ -74,16 +75,8 @@ export class PoolController implements IPoolController {
                     if (!target[p as keyof T]) {
                         const callMethod = new Proxy(() => {
                         }, {
-                            apply(target: () => void, thisArg: unknown, argArray?: unknown): unknown {
-                                return new Promise((res, rej) => {
-                                    const task = new Task(_self.options.taskOpt!);
-                                    task.request = new MessageRequest(task.key, EMessageSender.HANDLER, ECommandType.RUN, handler, p as string, argArray);
-                                    task.resolve = res;
-                                    task.reject = rej;
-
-                                    _self.queueOfTasks.push(task);
-                                    _self.nextTask();
-                                });
+                            apply(target: () => void, thisArg: unknown, argArray?: unknown[]): unknown {
+                                return _self.getApplyFunc(_self, handler, p as string, target, thisArg, argArray);
                             }
                         });
                         (target as any)[p as keyof T] = callMethod;
@@ -104,20 +97,49 @@ export class PoolController implements IPoolController {
             const _self: PoolController = this;
             this.proxyHandlers[handler] = new Proxy(() => {
             }, {
-                apply(target: () => void, thisArg: unknown, argArray?: unknown): unknown {
-                    return new Promise((res, rej) => {
-                        const task = new Task(_self.options.taskOpt!);
-                        task.request = new MessageRequest(task.key, EMessageSender.HANDLER, ECommandType.RUN, handler, '', argArray);
-                        task.resolve = res;
-                        task.reject = rej;
-
-                        _self.queueOfTasks.push(task);
-                        _self.nextTask();
-                    });
+                apply(target: () => void, thisArg: unknown, argArray?: unknown[]): unknown {
+                    return _self.getApplyFunc(_self, handler, '', target, thisArg, argArray);
                 }
             });
         }
         return this.proxyHandlers[handler] as T
+    }
+
+    public nextTask(): void {
+        if (!this.isClose) {
+            if (this.queueOfTasks.length) {
+                const info = this.checkPool();
+                let worker: WorkerController | undefined;
+
+                if (this.options.mode === EWorkerMode.ASYNC) {
+                    worker = this.workersPool.get(info.workerKeyMinTasks!);
+                } else {
+                    const workers: Iterable<WorkerController> = this.workersPool.values();
+                    for (const item of workers) {
+                        if (item.isFree) {
+                            worker = item;
+                            break;
+                        }
+                    }
+                }
+                if (worker) {
+                    const task = this.queueOfTasks.shift();
+                    if (!task || task.isSendResponse) return this.nextTask();
+                    if (task.request!.isStream && task.request!.isChunk) {
+                        worker = this.workersPool.get(task.request!.streamKey!)!;
+                        if (!worker) {
+                            task.reject!(new Error('Worker was destroyed'));
+                        } else {
+                            if (!worker.runTask(task)) {
+                                task.reject!(new Error('something was wrong!'));
+                            }
+                        }
+                    } else if (task && !worker.runTask(task)) {
+                        this.queueOfTasks.unshift(task);
+                    }
+                }
+            }
+        }
     }
 
     public getPoolOptions(): IPoolOptions {
@@ -203,31 +225,59 @@ export class PoolController implements IPoolController {
         }
     }
 
-    public nextTask(): void {
-        if (!this.isClose) {
-            if (this.queueOfTasks.length) {
-                const info = this.checkPool();
-                let worker: WorkerController | undefined;
-                if (this.options.mode === EWorkerMode.ASYNC) {
-                    worker = this.workersPool.get(info.workerKeyMinTasks!);
-                } else {
-                    const workers: Iterable<WorkerController> = this.workersPool.values();
-                    for (const item of workers) {
-                        if (item.isFree) {
-                            worker = item;
-                            break;
-                        }
-                    }
-                }
-                if (worker) {
-                    const task = this.queueOfTasks.shift();
-                    if (task?.isSendResponse) return this.nextTask();
-                    if (task && !worker.runTask(task)) {
-                        this.queueOfTasks.unshift(task);
-                    }
-                }
+    private getApplyFunc(self: PoolController, handler: string, execute: string, target: () => void, thisArg: unknown, argArray?: unknown[]): unknown {
+        return new Promise((res, rej) => {
+            const task = new Task(self.options.taskOpt!);
+            task.request = new MessageRequest(task.key, EMessageSender.HANDLER, ECommandType.RUN, handler, execute, argArray);
+            /*
+             якщо у нас стрім, ми повинні визвати в кінці після останнього чанку!
+             так само потрібно перевіряти зрив по таймеру
+            */
+            task.resolve = res;
+            task.reject = rej;
+
+
+            const sendChunkTask = (chunk: TAny, end: boolean, error = false): void => {
+                const taskChunk = new Task(self.options.taskOpt!);
+                taskChunk.request = new MessageRequest(taskChunk.key, EMessageSender.HANDLER, ECommandType.RUN, handler, '', chunk);
+                taskChunk.resolve = (data: any) => {
+                    self.logger.info(data);
+                };
+                taskChunk.reject = (er: Error | unknown) => self.logger.error(er as Error);
+
+                taskChunk.request.streamKey = task.key;
+                taskChunk.request.isStream = !end;
+                taskChunk.request.isStreamError = error;
+                taskChunk.request.isChunk = !end;
+                self.queueOfTasks.push(taskChunk);
+                self.nextTask();
             }
-        }
+
+            const streams = ['ReadStream', 'Readable'];
+            argArray?.forEach((v, i, arr) => {
+                if (v && typeof v === 'object' && streams.includes(v!.constructor.name)) {
+                    const stream = v as Readable;
+                    stream.on('data', (chunk: TAny) => {
+                        sendChunkTask(chunk, false);
+                    })
+                    stream.on('end', (data: any) => {
+                        sendChunkTask(data, true);
+                    })
+                    stream.on('error', er => {
+                        self.logger.error(er);
+                        sendChunkTask(er, true, true)
+                    });
+                    arr[i] = {
+                        stream: v.constructor.name,
+                        // data: v
+                    }
+                }
+                task.request!.isStream = true;
+            })
+
+            self.queueOfTasks.push(task);
+            self.nextTask();
+        });
     }
 
     public resetTask(task: Task): void {
