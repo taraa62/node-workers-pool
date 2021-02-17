@@ -9,6 +9,7 @@ export class MessageRequest implements IMessageRequest {
     public isChunk?: boolean;
     public streamKey?: TTaskKey;
     public isStreamError?: boolean;
+    public chunkId = 0;
 
     constructor(
         public key: TTaskKey,
@@ -38,11 +39,15 @@ export class Task {
     public isRun: boolean = false;
     public isEnd: boolean = false;
     public isSendResponse = false;
+    public isStream = false;  // the first task with streams params
     public timerKey?: number;
     public resolve?: (value?: unknown) => void;
     public reject?: (error?: unknown) => void;
     public request?: IMessageRequest;
     public numReset = 0;
+    public postRunData?: TAny;
+
+    public parent?: Task;
 
 
     constructor(private options: ITaskOptions) {

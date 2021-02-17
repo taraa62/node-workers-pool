@@ -1,8 +1,13 @@
+import {promisify} from 'util';
 import {EWorkerMode, EWorkerType, ILogger} from "../types/common";
 import {WorkerService} from "../src/workerService";
 import {IBBWorker, IStreamWorker} from "../handlers/IHandler";
+// @ts-ignore
+import axios from 'axios';
+// @ts-ignore
 import * as fs from "fs";
 
+const pause = promisify(setTimeout);
 
 describe('test', () => {
     const logger: ILogger = {
@@ -172,14 +177,38 @@ describe('test', () => {
             }
         });
 
-        const file = '/home/taraa62/Загрузки/Vox Pops Video.mp4';
-        const tmp = '/home/taraa62/Documents/svn/web-worker/tmp/Vox Pops Video.mp4';
-        const read = fs.createReadStream(file);
-
         const streamWorker: IStreamWorker = service.getHandlerObject('stream', 'stream.worker');
-        const error = await streamWorker.write(tmp, read);
 
-        console.error(error)
+  /*      await axios({
+            method: 'get',
+            url: 'https://previews.123rf.com/images/aphatai/aphatai1702/aphatai170200002/71702357-adorable-young-white-cat-on-a-leafless-winter-tree.jpg',
+            responseType: 'stream'
+        })
+            .then(function (response) {
+                streamWorker.write('/home/taraa62/Documents/svn/web-worker/tmp/Vox.jpg', response.data);
+            });
+*/
+
+        const file = '/home/taraa62/Загрузки/Vox Pops Video.mp4';
+        const tmp = '/home/taraa62/Documents/svn/web-worker/tmp/Vox_Pops_Video.mp4';
+
+        for (let i = 0; i < 1; i++) {
+            const read = fs.createReadStream(file);
+            const error = streamWorker.write(tmp + i, read);
+            console.error(error)
+
+            axios({
+                method: 'get',
+                url: 'https://previews.123rf.com/images/aphatai/aphatai1702/aphatai170200002/71702357-adorable-young-white-cat-on-a-leafless-winter-tree.jpg',
+                responseType: 'stream'
+            })
+                .then(function (response) {
+                    streamWorker.write('/home/taraa62/Documents/svn/web-worker/tmp/Vox.jpg' + i, response.data);
+                });
+        }
+
+
+        await pause(10000);
     }, 30000);
 })
 

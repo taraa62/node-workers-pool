@@ -26,6 +26,7 @@
 
   },
   "devDependencies": {
+    "axios": "^0.21.1",
     "@types/chai": "^4.2.12",
     "@types/jest": "^26.0.20",
     "chai": "^4.2.0",

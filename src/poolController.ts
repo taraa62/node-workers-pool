@@ -1,4 +1,4 @@
-import {IMessageResponse, IPoolController, TWorkerKey} from "../types/controller";
+import {IMessageResponse, IPoolController, TTaskKey, TWorkerKey} from "../types/controller";
 import {
     EWorkerMode,
     IError,
@@ -32,6 +32,7 @@ export class PoolController implements IPoolController {
     private queueOfTasks: Task[] = [];
     private proxyHandlers: Record<string, TAny> = {};
     private isClose = false;
+    private streamsKeys: Record<TTaskKey, TWorkerKey> = {};
 
 
     constructor(private readonly service: WorkerService, private options: IPoolOptions, private handlers: Record<string, string>, private logger: ILogger) {
@@ -125,17 +126,26 @@ export class PoolController implements IPoolController {
                 if (worker) {
                     const task = this.queueOfTasks.shift();
                     if (!task || task.isSendResponse) return this.nextTask();
-                    if (task.request!.isStream && task.request!.isChunk) {
-                        worker = this.workersPool.get(task.request!.streamKey!)!;
+                    if (task.request!.isStream) {
+                        const workerKey = this.streamsKeys[task.request!.streamKey!]
+                        worker = this.workersPool.get(workerKey)!;
                         if (!worker) {
+                            console.log(task.request);
                             task.reject!(new Error('Worker was destroyed'));
                         } else {
                             if (!worker.runTask(task)) {
                                 task.reject!(new Error('something was wrong!'));
                             }
                         }
-                    } else if (task && !worker.runTask(task)) {
-                        this.queueOfTasks.unshift(task);
+                    } else {
+                        const isRun = worker.runTask(task);
+                        if (!isRun) {
+                            this.queueOfTasks.unshift(task);
+                        } else {
+                            if (task.isStream) {
+                                this.streamsKeys[task.key] = worker.key;
+                            }
+                        }
                     }
                 }
             }
@@ -169,7 +179,20 @@ export class PoolController implements IPoolController {
         try {
             switch (mess.sender) {
                 case EMessageSender.HANDLER:
-                    if (task) task.send(null, mess.data);
+                    if (task) {
+                        // if it is stream and that is end.
+                        if (task.isStream) {
+                            task.postRunData = mess.data;
+                        } else {
+                            task.send(null, mess.data);
+                            if (task.request!.isStream) {
+                                if (task.request!.isEndStream && task.parent) {
+                                    delete this.streamsKeys[task.parent!.key];
+                                    task.parent.send(null, task.postRunData);
+                                }
+                            }
+                        }
+                    }
                     if (!this.isClose) {
                         this.checkPool();
                         this.nextTask();
@@ -188,6 +211,7 @@ export class PoolController implements IPoolController {
                             }
                             break;
                         case EResponseType.ERROR:
+                            this.logger.error(mess.data as Error); // TODO error does not showed
                             if (this.getWorkerOptions().isErrorCritical) {
                                 if (this.getWorkerOptions().isErrorCritical!(mess.data as Error)) {
                                     this.destroyController(workerKey, EResponseType.CRITICAL_ERROR);
@@ -218,7 +242,7 @@ export class PoolController implements IPoolController {
         } catch (e) {
             this.logger.error(e);
         } finally {
-            if (task && !task.isSendResponse) {
+            if (task && !task.isSendResponse && !task.isStream) {
                 throw new Error('Exit without answer!!!!')
             }
 
@@ -229,15 +253,17 @@ export class PoolController implements IPoolController {
         return new Promise((res, rej) => {
             const task = new Task(self.options.taskOpt!);
             task.request = new MessageRequest(task.key, EMessageSender.HANDLER, ECommandType.RUN, handler, execute, argArray);
+
             /*
              якщо у нас стрім, ми повинні визвати в кінці після останнього чанку!
              так само потрібно перевіряти зрив по таймеру
             */
             task.resolve = res;
             task.reject = rej;
-
+            let chunks = 0
 
             const sendChunkTask = (chunk: TAny, end: boolean, error = false): void => {
+                chunks++;
                 const taskChunk = new Task(self.options.taskOpt!);
                 taskChunk.request = new MessageRequest(taskChunk.key, EMessageSender.HANDLER, ECommandType.RUN, handler, '', chunk);
                 taskChunk.resolve = (data: any) => {
@@ -246,35 +272,43 @@ export class PoolController implements IPoolController {
                 taskChunk.reject = (er: Error | unknown) => self.logger.error(er as Error);
 
                 taskChunk.request.streamKey = task.key;
-                taskChunk.request.isStream = !end;
+                taskChunk.request.isStream = true;
+                taskChunk.request.isEndStream = end;
                 taskChunk.request.isStreamError = error;
-                taskChunk.request.isChunk = !end;
+                taskChunk.request.chunkId = chunks;
+                // taskChunk.workerKey = task.workerKey;
+                if (end) {
+                    taskChunk.parent = task;
+                }
+
                 self.queueOfTasks.push(taskChunk);
                 self.nextTask();
             }
 
-            const streams = ['ReadStream', 'Readable'];
             argArray?.forEach((v, i, arr) => {
-                if (v && typeof v === 'object' && streams.includes(v!.constructor.name)) {
-                    const stream = v as Readable;
-                    stream.on('data', (chunk: TAny) => {
-                        sendChunkTask(chunk, false);
-                    })
-                    stream.on('end', (data: any) => {
-                        sendChunkTask(data, true);
-                    })
-                    stream.on('error', er => {
-                        self.logger.error(er);
-                        sendChunkTask(er, true, true)
-                    });
-                    arr[i] = {
-                        stream: v.constructor.name,
-                        // data: v
+                if (v && typeof v === 'object') {
+                    if (v instanceof Readable) {
+
+                        const stream = v as Readable;
+                        stream.on('data', (chunk: TAny) => {
+                            sendChunkTask(chunk, false);
+                        })
+                        stream.on('end', (data: any) => {
+                            sendChunkTask(data, true);
+                        })
+                        stream.on('error', er => {
+                            self.logger.error(er);
+                            sendChunkTask(er, true, true)
+                        });
+                        arr[i] = {
+                            _stream: v.constructor.name,
+                            _isStream: true
+                        }
+                        task.isStream = true;
+                        task.request!.isInitStream = true;
                     }
                 }
-                task.request!.isStream = true;
             })
-
             self.queueOfTasks.push(task);
             self.nextTask();
         });

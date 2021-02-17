@@ -106,14 +106,20 @@ export abstract class AbstractWorker {
                         if (this.handlers[req.handler]) {
                             this.runTask();
                             try {
-                                if(req.isStream){
+                                if (req.isStream) {
                                     const stream = this.mapStreams.get(req.streamKey!);
                                     if (stream) {
-                                        stream.push(req.params);
-                                        return this.sendSuccess(req, EMessageSender.HANDLER, true);
+                                        if (!req.isEndStream && !req.isStreamError) {
+                                            stream.push(req.params);
+                                            return this.sendSuccess(req, EMessageSender.HANDLER, true);
+                                        } else {
+                                            !req.isStreamError ? stream.push(null) : stream.destroy(req.params as Error || new Error('Stream was destroyed'));
+                                            return this.sendSuccess(req, EMessageSender.HANDLER, true);
+                                        }
+                                    } else {
+                                        return this.sendError(req, new Error('Stream not found'), EMessageSender.WORKER);
                                     }
                                 }
-
 
 
                                 const handler = this.handlers[req.handler];
@@ -124,24 +130,18 @@ export abstract class AbstractWorker {
                                     func = handler[req.execute!];
                                 }
                                 if (func) {
-                                    if (req.isStream && Array.isArray(req.params)) {
-                                        if (!req.isChunk) {
-                                            req.params.forEach((v, i, arr) => {
-                                                if (v && typeof v === "object" && v.stream) {
-                                                    switch (v.stream) {
-                                                        case "ReadStream": {
-                                                            const stream = arr[i] = new Readable({
-                                                                objectMode: true,
-                                                                read(size: number) {
-                                                                }
-                                                            });
-
-                                                            this.mapStreams.set(req.key, stream);
-                                                        }
+                                    if (req.isInitStream && Array.isArray(req.params)) {
+                                        req.params.forEach((v, i, arr) => {
+                                            if (v && typeof v === "object" && v._isStream && v._stream) {
+                                                const stream = arr[i] = new Readable({
+                                                    objectMode: true,
+                                                    read(size: number) {
                                                     }
-                                                }
-                                            })
-                                        }
+                                                });
+                                                this.mapStreams.set(req.key, stream);
+
+                                            }
+                                        })
                                     }
                                     let res = func.apply(handlerDefParams, req.params);
                                     if (res && typeof res === "object" && res.constructor.name === 'Promise') {
@@ -186,10 +186,10 @@ export abstract class AbstractWorker {
         this.sendToParent(new MessageResponse(req.key, EResponseType.SUCCESS, sender, req.command, data))
     }
 
-    protected sendError(req: IMessageRequest, error: Error, sender: EMessageSender, errorType?: EResponseType): void {
+    protected sendError(req: IMessageRequest, error: Error, sender: EMessageSender, errorType: EResponseType = EResponseType.ERROR): void {
         const mess = `Error called method: '${req.execute}' to: '${getSenderKey(req.sender)}' with params: ${
             JSON.stringify(req.params)}, message: ${error?.message}`
-        this.sendToParent(new MessageResponse(req.key, EResponseType.ERROR, sender, req.command, {
+        this.sendToParent(new MessageResponse(req.key, errorType, sender, req.command, {
             code: errorType || EResponseType.ERROR,
             message: mess,
             stack: error.stack

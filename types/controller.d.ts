@@ -37,10 +37,12 @@ export interface IMessageRequest {
     readonly  execute?: string;
     readonly  params?: TAny | Array<TAny | IStreamParam>;
 
+    isInitStream?: boolean;
     isStream?: boolean;
-    isChunk?:boolean;
+    isEndStream?: boolean;
     isStreamError?: boolean;
     streamKey?: TTaskKey;
+    chunkId?: number;
 
 }
 
