@@ -211,7 +211,7 @@ export class PoolController implements IPoolController {
                             }
                             break;
                         case EResponseType.ERROR:
-                            this.logger.error(mess.data as Error); // TODO error does not showed
+                            this.logger.error(mess.data as Error); // TODO error does not show
                             if (this.getWorkerOptions().isErrorCritical) {
                                 if (this.getWorkerOptions().isErrorCritical!(mess.data as Error)) {
                                     this.destroyController(workerKey, EResponseType.CRITICAL_ERROR);
@@ -286,7 +286,7 @@ export class PoolController implements IPoolController {
             }
 
             argArray?.forEach((v, i, arr) => {
-                if (v && typeof v === 'object') {
+                if (v && typeof v === 'object') {   // TODO прибрати перевірку
                     if (v instanceof Readable) {
 
                         const stream = v as Readable;
