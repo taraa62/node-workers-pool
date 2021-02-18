@@ -193,7 +193,7 @@ export class PoolController implements IPoolController {
                             }
                         }
                     }
-                    if (!this.isClose) {
+                    if (!this.isClose) {  // TODO move to finally
                         this.checkPool();
                         this.nextTask();
                     }
